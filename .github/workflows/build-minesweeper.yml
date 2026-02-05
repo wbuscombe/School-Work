@@ -1,0 +1,143 @@
+name: Build Minesweeper
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'Intermediate C Programming/Project03_01/**'
+      - '.github/workflows/build-minesweeper.yml'
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'Intermediate C Programming/Project03_01/**'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: Linux
+            artifact: minesweeper-linux
+            executable: minesweeper
+          - os: macos-latest
+            name: macOS
+            artifact: minesweeper-macos
+            executable: minesweeper
+          - os: windows-latest
+            name: Windows
+            artifact: minesweeper-windows
+            executable: minesweeper.exe
+
+    runs-on: ${{ matrix.os }}
+    name: Build (${{ matrix.name }})
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install SDL2 (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev libsdl2-mixer-dev
+
+      - name: Install SDL2 (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install sdl2 sdl2_image sdl2_ttf sdl2_mixer
+
+      - name: Install SDL2 (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          # Download SDL2 development libraries for MinGW
+          $SDL2_VERSION = "2.30.10"
+          $SDL2_IMAGE_VERSION = "2.8.4"
+          $SDL2_TTF_VERSION = "2.22.0"
+          $SDL2_MIXER_VERSION = "2.8.0"
+
+          # Create lib directory
+          New-Item -ItemType Directory -Force -Path "C:\SDL2"
+
+          # Download and extract SDL2
+          Invoke-WebRequest -Uri "https://github.com/libsdl-org/SDL/releases/download/release-$SDL2_VERSION/SDL2-devel-$SDL2_VERSION-mingw.zip" -OutFile "SDL2.zip"
+          Expand-Archive -Path "SDL2.zip" -DestinationPath "C:\SDL2" -Force
+
+          # Download and extract SDL2_image
+          Invoke-WebRequest -Uri "https://github.com/libsdl-org/SDL_image/releases/download/release-$SDL2_IMAGE_VERSION/SDL2_image-devel-$SDL2_IMAGE_VERSION-mingw.zip" -OutFile "SDL2_image.zip"
+          Expand-Archive -Path "SDL2_image.zip" -DestinationPath "C:\SDL2" -Force
+
+          # Download and extract SDL2_ttf
+          Invoke-WebRequest -Uri "https://github.com/libsdl-org/SDL_ttf/releases/download/release-$SDL2_TTF_VERSION/SDL2_ttf-devel-$SDL2_TTF_VERSION-mingw.zip" -OutFile "SDL2_ttf.zip"
+          Expand-Archive -Path "SDL2_ttf.zip" -DestinationPath "C:\SDL2" -Force
+
+          # Download and extract SDL2_mixer
+          Invoke-WebRequest -Uri "https://github.com/libsdl-org/SDL_mixer/releases/download/release-$SDL2_MIXER_VERSION/SDL2_mixer-devel-$SDL2_MIXER_VERSION-mingw.zip" -OutFile "SDL2_mixer.zip"
+          Expand-Archive -Path "SDL2_mixer.zip" -DestinationPath "C:\SDL2" -Force
+
+      - name: Build (Linux/macOS)
+        if: runner.os != 'Windows'
+        working-directory: 'Intermediate C Programming/Project03_01'
+        run: |
+          cc main.c -Wall -std=c99 \
+            $(sdl2-config --cflags) \
+            $(sdl2-config --libs) \
+            -lSDL2_image -lSDL2_ttf -lSDL2_mixer \
+            -o minesweeper
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        working-directory: 'Intermediate C Programming/Project03_01'
+        shell: cmd
+        run: |
+          gcc main.c -Wall -std=c99 ^
+            -IC:\SDL2\SDL2-2.30.10\x86_64-w64-mingw32\include\SDL2 ^
+            -IC:\SDL2\SDL2_image-2.8.4\x86_64-w64-mingw32\include\SDL2 ^
+            -IC:\SDL2\SDL2_ttf-2.22.0\x86_64-w64-mingw32\include\SDL2 ^
+            -IC:\SDL2\SDL2_mixer-2.8.0\x86_64-w64-mingw32\include\SDL2 ^
+            -LC:\SDL2\SDL2-2.30.10\x86_64-w64-mingw32\lib ^
+            -LC:\SDL2\SDL2_image-2.8.4\x86_64-w64-mingw32\lib ^
+            -LC:\SDL2\SDL2_ttf-2.22.0\x86_64-w64-mingw32\lib ^
+            -LC:\SDL2\SDL2_mixer-2.8.0\x86_64-w64-mingw32\lib ^
+            -lmingw32 -lSDL2main -lSDL2 -lSDL2_image -lSDL2_ttf -lSDL2_mixer ^
+            -o minesweeper.exe
+
+      - name: Prepare artifacts (Linux/macOS)
+        if: runner.os != 'Windows'
+        working-directory: 'Intermediate C Programming/Project03_01'
+        run: |
+          mkdir -p dist
+          cp minesweeper dist/
+          cp *.bmp dist/
+          cp *.ttf dist/ 2>/dev/null || true
+          cp *.wav dist/ 2>/dev/null || true
+          cp *.png dist/ 2>/dev/null || true
+          cp README.md dist/
+
+      - name: Prepare artifacts (Windows)
+        if: runner.os == 'Windows'
+        working-directory: 'Intermediate C Programming/Project03_01'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "dist"
+          Copy-Item "minesweeper.exe" "dist\"
+          Copy-Item "*.bmp" "dist\"
+          Get-ChildItem "*.ttf" -ErrorAction SilentlyContinue | Copy-Item -Destination "dist\"
+          Get-ChildItem "*.wav" -ErrorAction SilentlyContinue | Copy-Item -Destination "dist\"
+          Get-ChildItem "*.png" -ErrorAction SilentlyContinue | Copy-Item -Destination "dist\"
+          Copy-Item "README.md" "dist\"
+
+          # Copy SDL2 DLLs for Windows distribution
+          Copy-Item "C:\SDL2\SDL2-2.30.10\x86_64-w64-mingw32\bin\*.dll" "dist\"
+          Copy-Item "C:\SDL2\SDL2_image-2.8.4\x86_64-w64-mingw32\bin\*.dll" "dist\"
+          Copy-Item "C:\SDL2\SDL2_ttf-2.22.0\x86_64-w64-mingw32\bin\*.dll" "dist\"
+          Copy-Item "C:\SDL2\SDL2_mixer-2.8.0\x86_64-w64-mingw32\bin\*.dll" "dist\"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: 'Intermediate C Programming/Project03_01/dist/'
+          retention-days: 30
