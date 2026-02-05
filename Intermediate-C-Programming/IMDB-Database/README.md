@@ -1,12 +1,67 @@
-#Description
+# IMDB Database Query Tool
+
+A command-line tool for querying movie databases using SQLite.
+
+## Description
 
 Use the IMDB files from ftp://ftp.fu-berlin.de/pub/misc/movies/database/ to build a SQLite database that supports the following applications (which you will also build).
 
-+ tag movie_name: prints all of tag lines used for all of the movies with the given name. Tag lines are printed one per line and are prefixed with the year of the movie.
+## Commands
 
-+ movies rating year: prints all of the movies with the given MPAA rating in the given year along with the reasons for the rating in alphabetic order.
- 
-+ actors movie_name: prints all of the actors in all of the movies with the given name. Output is sorted by year then actor name.
+- `tag movie_name`: prints all of tag lines used for all of the movies with the given name. Tag lines are printed one per line and are prefixed with the year of the movie.
+
+- `movies rating year`: prints all of the movies with the given MPAA rating in the given year along with the reasons for the rating in alphabetic order.
+
+- `actors movie_name`: prints all of the actors in all of the movies with the given name. Output is sorted by year then actor name.
+
+- `exit`: quit and exit the program.
+
+## Optimizations (2026)
+
+The following critical security fixes and improvements were made:
+
+### CRITICAL: SQL Injection Vulnerability Fixed
+**Files:** `main.c` - `tag()`, `movies()`, `actors()`
+
+**The Problem:**
+The original code built SQL queries by concatenating user input directly into the query string:
+```c
+// VULNERABLE - DO NOT USE
+strcpy(sql, "select * from movies where name='");
+strcat(sql, user_input);  // Attacker-controlled!
+strcat(sql, "';");
+```
+
+An attacker could input: `'; DROP TABLE movies; --`
+
+This creates: `select * from movies where name=''; DROP TABLE movies; --'`
+
+**The Fix:**
+Replaced with parameterized queries using `sqlite3_prepare_v2()` and `sqlite3_bind_text()`:
+```c
+// SECURE - Parameters are never interpreted as SQL
+sqlite3_prepare_v2(db, "SELECT * FROM movies WHERE name = ?;", ...);
+sqlite3_bind_text(stmt, 1, user_input, ...);
+```
+
+### Bug Fix: Uninitialized Buffer
+**Files:** `main.c` - `tag()`, `actors()`
+
+The `movie` buffer was used with `strcat()` before being initialized:
+```c
+char movie[MAX_CHARS];
+strcat(movie, arguments[i]);  // BUG: movie contains garbage!
+```
+
+Fixed by initializing: `movie[0] = '\0';`
+
+### Security: Buffer Overflow Protection
+**File:** `main.c` - `parse()`
+
+Added bounds checking when reading user input to prevent buffer overflows.
+
+### Code Quality: Result Processing
+Refactored from callback-based `sqlite3_exec()` to step-based `sqlite3_step()` for clearer result handling and better error reporting.
 
 ************************************************************************************************************************************************************
 ##README.txt
