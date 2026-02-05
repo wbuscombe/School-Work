@@ -6,6 +6,8 @@ on:
     paths:
       - 'Intermediate-C-Programming/Minesweeper/**'
       - '.github/workflows/build-minesweeper.yml'
+    tags:
+      - 'minesweeper-v*'  # Trigger on version tags
   pull_request:
     branches: [ master ]
     paths:
@@ -37,19 +39,20 @@ jobs:
       - name: Prepare artifacts
         working-directory: 'Intermediate-C-Programming/Minesweeper'
         run: |
-          mkdir -p dist
-          cp minesweeper dist/
-          cp *.bmp dist/
-          cp *.ttf dist/ 2>/dev/null || true
-          cp *.wav dist/ 2>/dev/null || true
-          cp *.png dist/ 2>/dev/null || true
-          cp README.md dist/
+          mkdir -p Minesweeper-Linux
+          cp minesweeper Minesweeper-Linux/
+          cp *.bmp Minesweeper-Linux/
+          cp *.ttf Minesweeper-Linux/ 2>/dev/null || true
+          cp *.wav Minesweeper-Linux/ 2>/dev/null || true
+          cp *.png Minesweeper-Linux/ 2>/dev/null || true
+          cp README.md Minesweeper-Linux/
+          zip -r minesweeper-linux.zip Minesweeper-Linux/
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: minesweeper-linux
-          path: 'Intermediate-C-Programming/Minesweeper/dist/'
+          path: 'Intermediate-C-Programming/Minesweeper/minesweeper-linux.zip'
           retention-days: 30
 
   build-macos:
@@ -70,7 +73,7 @@ jobs:
           # but code uses #include <SDL2/SDL.h>, so we need parent dir
           SDL2_INCLUDE="$(brew --prefix)/include"
           SDL2_LIB="$(brew --prefix)/lib"
-          cc main.c -Wall -std=c99 \
+          clang main.c -Wall -std=c99 \
             -I"$SDL2_INCLUDE" \
             -L"$SDL2_LIB" \
             -lSDL2 -lSDL2_image -lSDL2_ttf -lSDL2_mixer \
@@ -79,19 +82,20 @@ jobs:
       - name: Prepare artifacts
         working-directory: 'Intermediate-C-Programming/Minesweeper'
         run: |
-          mkdir -p dist
-          cp minesweeper dist/
-          cp *.bmp dist/
-          cp *.ttf dist/ 2>/dev/null || true
-          cp *.wav dist/ 2>/dev/null || true
-          cp *.png dist/ 2>/dev/null || true
-          cp README.md dist/
+          mkdir -p Minesweeper-macOS
+          cp minesweeper Minesweeper-macOS/
+          cp *.bmp Minesweeper-macOS/
+          cp *.ttf Minesweeper-macOS/ 2>/dev/null || true
+          cp *.wav Minesweeper-macOS/ 2>/dev/null || true
+          cp *.png Minesweeper-macOS/ 2>/dev/null || true
+          cp README.md Minesweeper-macOS/
+          zip -r minesweeper-macos.zip Minesweeper-macOS/
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: minesweeper-macos
-          path: 'Intermediate-C-Programming/Minesweeper/dist/'
+          path: 'Intermediate-C-Programming/Minesweeper/minesweeper-macos.zip'
           retention-days: 30
 
   build-windows:
@@ -115,6 +119,7 @@ jobs:
             mingw-w64-x86_64-SDL2_image
             mingw-w64-x86_64-SDL2_ttf
             mingw-w64-x86_64-SDL2_mixer
+            zip
 
       - name: Build
         working-directory: 'Intermediate-C-Programming/Minesweeper'
@@ -128,20 +133,69 @@ jobs:
       - name: Prepare artifacts
         working-directory: 'Intermediate-C-Programming/Minesweeper'
         run: |
-          mkdir -p dist
-          cp minesweeper.exe dist/
-          cp *.bmp dist/
-          cp *.ttf dist/ 2>/dev/null || true
-          cp *.wav dist/ 2>/dev/null || true
-          cp *.png dist/ 2>/dev/null || true
-          cp README.md dist/
+          mkdir -p Minesweeper-Windows
+          cp minesweeper.exe Minesweeper-Windows/
+          cp *.bmp Minesweeper-Windows/
+          cp *.ttf Minesweeper-Windows/ 2>/dev/null || true
+          cp *.wav Minesweeper-Windows/ 2>/dev/null || true
+          cp *.png Minesweeper-Windows/ 2>/dev/null || true
+          cp README.md Minesweeper-Windows/
 
           # Copy required DLLs for standalone distribution
-          ldd minesweeper.exe | grep mingw64 | awk '{print $3}' | xargs -I{} cp {} dist/ 2>/dev/null || true
+          # Get all MinGW64 runtime DLLs needed
+          for dll in $(ldd minesweeper.exe | grep mingw64 | awk '{print $3}'); do
+            cp "$dll" Minesweeper-Windows/
+          done
+
+          # Create a simple batch file to run the game
+          echo '@echo off' > Minesweeper-Windows/Play.bat
+          echo 'start minesweeper.exe' >> Minesweeper-Windows/Play.bat
+
+          zip -r minesweeper-windows.zip Minesweeper-Windows/
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: minesweeper-windows
-          path: 'Intermediate-C-Programming/Minesweeper/dist/'
+          path: 'Intermediate-C-Programming/Minesweeper/minesweeper-windows.zip'
           retention-days: 30
+
+  # Create GitHub Release when a version tag is pushed
+  release:
+    if: startsWith(github.ref, 'refs/tags/minesweeper-v')
+    needs: [build-linux, build-macos, build-windows]
+    runs-on: ubuntu-latest
+    name: Create Release
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: "Minesweeper ${{ github.ref_name }}"
+          body: |
+            ## Extreme Minesweeper Release
+
+            Download the appropriate package for your operating system:
+            - **Windows**: `minesweeper-windows.zip` - Extract and run `Play.bat` or `minesweeper.exe`
+            - **macOS**: `minesweeper-macos.zip` - Extract and run `minesweeper` (requires SDL2 via Homebrew)
+            - **Linux**: `minesweeper-linux.zip` - Extract and run `minesweeper` (requires SDL2 packages)
+
+            ### Windows Users
+            The Windows package includes all required DLLs - no additional installation needed.
+
+            ### macOS/Linux Users
+            You'll need SDL2, SDL2_image, SDL2_ttf, and SDL2_mixer installed:
+            - **macOS**: `brew install sdl2 sdl2_image sdl2_ttf sdl2_mixer`
+            - **Ubuntu/Debian**: `sudo apt install libsdl2-2.0-0 libsdl2-image-2.0-0 libsdl2-ttf-2.0-0 libsdl2-mixer-2.0-0`
+          files: |
+            artifacts/minesweeper-linux/minesweeper-linux.zip
+            artifacts/minesweeper-macos/minesweeper-macos.zip
+            artifacts/minesweeper-windows/minesweeper-windows.zip
+          draft: false
+          prerelease: false
