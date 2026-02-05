@@ -154,6 +154,11 @@ void cleanupAndClose(int exitCode, GameState *state)
 	if (state->defeatSound)		Mix_FreeChunk(state->defeatSound);
 	if (state->explosionSound)	Mix_FreeChunk(state->explosionSound);
 	if (state->explosionAnimation)	SDL_DestroyTexture(state->explosionAnimation);
+	// FIX: Added missing cleanup calls for SDL_image and SDL_mixer audio device.
+	// Previously, IMG_Init() at line 331 and Mix_OpenAudio() at line 177 were called
+	// but their corresponding cleanup functions were never invoked, leaking resources.
+	Mix_CloseAudio();
+	IMG_Quit();
 	if (SDL_WasInit(0))		SDL_Quit();
 	if (TTF_WasInit())		TTF_Quit();
 	if (Mix_Init(0))		Mix_Quit();
@@ -736,6 +741,11 @@ void draw(GameState *state, bool explosionFlag)
 
 						SDL_Surface *adjNumSurface = TTF_RenderText_Blended(state->tileFont, strAdj, adjNumBlue);
 
+						// FIX: Destroy previous texture before creating new one to prevent memory leak.
+						// Previously, a new texture was created every frame without freeing the old one,
+						// causing memory to grow unbounded as tiles were revealed.
+						// Old code: state->tileText[i][j] = SDL_CreateTextureFromSurface(...);
+						if (state->tileText[i][j]) SDL_DestroyTexture(state->tileText[i][j]);
 						state->tileText[i][j] = SDL_CreateTextureFromSurface(state->renderer, adjNumSurface);
 
 						SDL_FreeSurface(adjNumSurface);
@@ -776,6 +786,11 @@ void draw(GameState *state, bool explosionFlag)
 	else
 		clockSurface = TTF_RenderText_Blended(state->clockFont, strTime, clockGreen);
 
+	// FIX: Destroy previous clock texture before creating new one to prevent memory leak.
+	// Previously, a new texture was created every frame (~60fps) without freeing the old one,
+	// causing thousands of orphaned textures per minute of gameplay.
+	// Old code: state->clockText = SDL_CreateTextureFromSurface(...);
+	if (state->clockText) SDL_DestroyTexture(state->clockText);
 	state->clockText = SDL_CreateTextureFromSurface(state->renderer, clockSurface);
 
 	SDL_FreeSurface(clockSurface);
