@@ -46,13 +46,58 @@ jobs:
           cp *.wav Minesweeper-Linux/ 2>/dev/null || true
           cp *.png Minesweeper-Linux/ 2>/dev/null || true
           cp README.md Minesweeper-Linux/
+
+          # Create launcher script
+          cat > Minesweeper-Linux/minesweeper.sh << 'LAUNCHER'
+          #!/bin/bash
+          # Extreme Minesweeper Launcher
+          cd "$(dirname "$0")"
+          ./minesweeper "$@"
+          LAUNCHER
+          chmod +x Minesweeper-Linux/minesweeper.sh
+
+          # Create install script
+          cat > Minesweeper-Linux/install.sh << 'INSTALL'
+          #!/bin/bash
+          # Extreme Minesweeper Installer for Linux
+          echo "Installing Extreme Minesweeper..."
+
+          # Check for SDL2 dependencies
+          if ! ldconfig -p | grep -q libSDL2; then
+              echo "SDL2 libraries not found. Please install them:"
+              echo "  Ubuntu/Debian: sudo apt install libsdl2-2.0-0 libsdl2-image-2.0-0 libsdl2-ttf-2.0-0 libsdl2-mixer-2.0-0"
+              echo "  Fedora: sudo dnf install SDL2 SDL2_image SDL2_ttf SDL2_mixer"
+              echo "  Arch: sudo pacman -S sdl2 sdl2_image sdl2_ttf sdl2_mixer"
+              exit 1
+          fi
+
+          INSTALL_DIR="$HOME/.local/share/minesweeper"
+          BIN_DIR="$HOME/.local/bin"
+
+          mkdir -p "$INSTALL_DIR" "$BIN_DIR"
+          cp -r . "$INSTALL_DIR/"
+          ln -sf "$INSTALL_DIR/minesweeper.sh" "$BIN_DIR/minesweeper"
+
+          echo "Installed to $INSTALL_DIR"
+          echo "Run with: minesweeper (or $BIN_DIR/minesweeper)"
+          INSTALL
+          chmod +x Minesweeper-Linux/install.sh
+
+          tar -czvf minesweeper-linux.tar.gz Minesweeper-Linux/
           zip -r minesweeper-linux.zip Minesweeper-Linux/
 
-      - name: Upload artifact
+      - name: Upload ZIP artifact
         uses: actions/upload-artifact@v4
         with:
-          name: minesweeper-linux
+          name: minesweeper-linux-zip
           path: 'Intermediate-C-Programming/Minesweeper/minesweeper-linux.zip'
+          retention-days: 30
+
+      - name: Upload tarball artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: minesweeper-linux-tar
+          path: 'Intermediate-C-Programming/Minesweeper/minesweeper-linux.tar.gz'
           retention-days: 30
 
   build-macos:
@@ -69,8 +114,6 @@ jobs:
       - name: Build
         working-directory: 'Intermediate-C-Programming/Minesweeper'
         run: |
-          # Homebrew's sdl2-config --cflags returns -I.../include/SDL2
-          # but code uses #include <SDL2/SDL.h>, so we need parent dir
           SDL2_INCLUDE="$(brew --prefix)/include"
           SDL2_LIB="$(brew --prefix)/lib"
           clang main.c -Wall -std=c99 \
@@ -79,9 +122,61 @@ jobs:
             -lSDL2 -lSDL2_image -lSDL2_ttf -lSDL2_mixer \
             -o minesweeper
 
-      - name: Prepare artifacts
+      - name: Create macOS App Bundle
         working-directory: 'Intermediate-C-Programming/Minesweeper'
         run: |
+          # Create .app bundle structure
+          APP_NAME="Extreme Minesweeper.app"
+          mkdir -p "$APP_NAME/Contents/MacOS"
+          mkdir -p "$APP_NAME/Contents/Resources"
+
+          # Copy executable
+          cp minesweeper "$APP_NAME/Contents/MacOS/"
+
+          # Copy resources
+          cp *.bmp "$APP_NAME/Contents/Resources/"
+          cp *.ttf "$APP_NAME/Contents/Resources/" 2>/dev/null || true
+          cp *.wav "$APP_NAME/Contents/Resources/" 2>/dev/null || true
+          cp *.png "$APP_NAME/Contents/Resources/" 2>/dev/null || true
+
+          # Create Info.plist
+          cat > "$APP_NAME/Contents/Info.plist" << 'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleName</key>
+              <string>Extreme Minesweeper</string>
+              <key>CFBundleDisplayName</key>
+              <string>Extreme Minesweeper</string>
+              <key>CFBundleIdentifier</key>
+              <string>com.wbuscombe.extrememinesweeper</string>
+              <key>CFBundleVersion</key>
+              <string>2.0.0</string>
+              <key>CFBundleShortVersionString</key>
+              <string>2.0</string>
+              <key>CFBundleExecutable</key>
+              <string>minesweeper</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>LSMinimumSystemVersion</key>
+              <string>10.13</string>
+              <key>NSHighResolutionCapable</key>
+              <true/>
+          </dict>
+          </plist>
+          PLIST
+
+          # Create launcher script that sets working directory
+          mv "$APP_NAME/Contents/MacOS/minesweeper" "$APP_NAME/Contents/MacOS/minesweeper-bin"
+          cat > "$APP_NAME/Contents/MacOS/minesweeper" << 'LAUNCHER'
+          #!/bin/bash
+          cd "$(dirname "$0")/../Resources"
+          exec "$(dirname "$0")/minesweeper-bin" "$@"
+          LAUNCHER
+          chmod +x "$APP_NAME/Contents/MacOS/minesweeper"
+
+          # Also create standalone folder for users who prefer that
           mkdir -p Minesweeper-macOS
           cp minesweeper Minesweeper-macOS/
           cp *.bmp Minesweeper-macOS/
@@ -89,9 +184,19 @@ jobs:
           cp *.wav Minesweeper-macOS/ 2>/dev/null || true
           cp *.png Minesweeper-macOS/ 2>/dev/null || true
           cp README.md Minesweeper-macOS/
+
+          # Package both
+          zip -r minesweeper-macos-app.zip "Extreme Minesweeper.app"
           zip -r minesweeper-macos.zip Minesweeper-macOS/
 
-      - name: Upload artifact
+      - name: Upload App Bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: minesweeper-macos-app
+          path: 'Intermediate-C-Programming/Minesweeper/minesweeper-macos-app.zip'
+          retention-days: 30
+
+      - name: Upload standalone artifact
         uses: actions/upload-artifact@v4
         with:
           name: minesweeper-macos
@@ -119,6 +224,7 @@ jobs:
             mingw-w64-x86_64-SDL2_image
             mingw-w64-x86_64-SDL2_ttf
             mingw-w64-x86_64-SDL2_mixer
+            mingw-w64-x86_64-nsis
             zip
 
       - name: Build
@@ -128,6 +234,7 @@ jobs:
             $(sdl2-config --cflags) \
             $(sdl2-config --libs) \
             -lSDL2_image -lSDL2_ttf -lSDL2_mixer \
+            -mwindows \
             -o minesweeper.exe
 
       - name: Prepare artifacts
@@ -142,22 +249,78 @@ jobs:
           cp README.md Minesweeper-Windows/
 
           # Copy required DLLs for standalone distribution
-          # Get all MinGW64 runtime DLLs needed
           for dll in $(ldd minesweeper.exe | grep mingw64 | awk '{print $3}'); do
             cp "$dll" Minesweeper-Windows/
           done
 
           # Create a simple batch file to run the game
           echo '@echo off' > Minesweeper-Windows/Play.bat
-          echo 'start minesweeper.exe' >> Minesweeper-Windows/Play.bat
+          echo 'cd /d "%~dp0"' >> Minesweeper-Windows/Play.bat
+          echo 'start "" minesweeper.exe' >> Minesweeper-Windows/Play.bat
 
           zip -r minesweeper-windows.zip Minesweeper-Windows/
 
-      - name: Upload artifact
+      - name: Create Windows Installer
+        working-directory: 'Intermediate-C-Programming/Minesweeper'
+        run: |
+          # Create NSIS installer script
+          cat > installer.nsi << 'NSIS'
+          !include "MUI2.nsh"
+
+          Name "Extreme Minesweeper"
+          OutFile "Minesweeper-Setup.exe"
+          InstallDir "$PROGRAMFILES\Extreme Minesweeper"
+          RequestExecutionLevel admin
+
+          !define MUI_ICON "${NSISDIR}\Contrib\Graphics\Icons\modern-install.ico"
+
+          !insertmacro MUI_PAGE_WELCOME
+          !insertmacro MUI_PAGE_DIRECTORY
+          !insertmacro MUI_PAGE_INSTFILES
+          !insertmacro MUI_PAGE_FINISH
+
+          !insertmacro MUI_UNPAGE_CONFIRM
+          !insertmacro MUI_UNPAGE_INSTFILES
+
+          !insertmacro MUI_LANGUAGE "English"
+
+          Section "Install"
+              SetOutPath "$INSTDIR"
+              File /r "Minesweeper-Windows\*.*"
+
+              CreateDirectory "$SMPROGRAMS\Extreme Minesweeper"
+              CreateShortcut "$SMPROGRAMS\Extreme Minesweeper\Extreme Minesweeper.lnk" "$INSTDIR\minesweeper.exe"
+              CreateShortcut "$SMPROGRAMS\Extreme Minesweeper\Uninstall.lnk" "$INSTDIR\uninstall.exe"
+              CreateShortcut "$DESKTOP\Extreme Minesweeper.lnk" "$INSTDIR\minesweeper.exe"
+
+              WriteUninstaller "$INSTDIR\uninstall.exe"
+
+              WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\ExtremeMinesweeper" "DisplayName" "Extreme Minesweeper"
+              WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\ExtremeMinesweeper" "UninstallString" "$INSTDIR\uninstall.exe"
+          SectionEnd
+
+          Section "Uninstall"
+              RMDir /r "$INSTDIR"
+              RMDir /r "$SMPROGRAMS\Extreme Minesweeper"
+              Delete "$DESKTOP\Extreme Minesweeper.lnk"
+              DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\ExtremeMinesweeper"
+          SectionEnd
+          NSIS
+
+          makensis installer.nsi
+
+      - name: Upload ZIP artifact
         uses: actions/upload-artifact@v4
         with:
-          name: minesweeper-windows
+          name: minesweeper-windows-zip
           path: 'Intermediate-C-Programming/Minesweeper/minesweeper-windows.zip'
+          retention-days: 30
+
+      - name: Upload Installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: minesweeper-windows-installer
+          path: 'Intermediate-C-Programming/Minesweeper/Minesweeper-Setup.exe'
           retention-days: 30
 
   # Create GitHub Release when a version tag is pushed
@@ -177,25 +340,42 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          name: "Minesweeper ${{ github.ref_name }}"
+          name: "Extreme Minesweeper ${{ github.ref_name }}"
           body: |
             ## Extreme Minesweeper Release
 
-            Download the appropriate package for your operating system:
-            - **Windows**: `minesweeper-windows.zip` - Extract and run `Play.bat` or `minesweeper.exe`
-            - **macOS**: `minesweeper-macos.zip` - Extract and run `minesweeper` (requires SDL2 via Homebrew)
-            - **Linux**: `minesweeper-linux.zip` - Extract and run `minesweeper` (requires SDL2 packages)
+            A classic Minesweeper game with a twist - race against the clock!
 
-            ### Windows Users
-            The Windows package includes all required DLLs - no additional installation needed.
+            ### Features
+            - Four difficulty levels: Easy (120s), Medium (90s), Hard (60s), Extreme (30s)
+            - EXTREME+ mode: Keep pushing your limits after beating Extreme
+            - Background music and sound effects
+            - Explosion animations
 
-            ### macOS/Linux Users
-            You'll need SDL2, SDL2_image, SDL2_ttf, and SDL2_mixer installed:
-            - **macOS**: `brew install sdl2 sdl2_image sdl2_ttf sdl2_mixer`
-            - **Ubuntu/Debian**: `sudo apt install libsdl2-2.0-0 libsdl2-image-2.0-0 libsdl2-ttf-2.0-0 libsdl2-mixer-2.0-0`
+            ---
+
+            ### Downloads
+
+            #### Windows
+            - **`Minesweeper-Setup.exe`** - Installer (recommended) - Creates Start Menu & Desktop shortcuts
+            - **`minesweeper-windows.zip`** - Portable ZIP - Extract and run `Play.bat`
+
+            #### macOS
+            - **`minesweeper-macos-app.zip`** - App Bundle - Extract and drag to Applications
+            - **`minesweeper-macos.zip`** - Standalone folder
+            - *Requires SDL2:* `brew install sdl2 sdl2_image sdl2_ttf sdl2_mixer`
+
+            #### Linux
+            - **`minesweeper-linux.tar.gz`** - Tarball with install script
+            - **`minesweeper-linux.zip`** - ZIP archive
+            - *Requires SDL2:* `sudo apt install libsdl2-2.0-0 libsdl2-image-2.0-0 libsdl2-ttf-2.0-0 libsdl2-mixer-2.0-0`
+
           files: |
-            artifacts/minesweeper-linux/minesweeper-linux.zip
+            artifacts/minesweeper-linux-zip/minesweeper-linux.zip
+            artifacts/minesweeper-linux-tar/minesweeper-linux.tar.gz
             artifacts/minesweeper-macos/minesweeper-macos.zip
-            artifacts/minesweeper-windows/minesweeper-windows.zip
+            artifacts/minesweeper-macos-app/minesweeper-macos-app.zip
+            artifacts/minesweeper-windows-zip/minesweeper-windows.zip
+            artifacts/minesweeper-windows-installer/Minesweeper-Setup.exe
           draft: false
           prerelease: false
