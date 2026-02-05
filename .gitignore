@@ -1,0 +1,33 @@
+# Build artifacts
+*.o
+*.exe
+*.out
+*.class
+project03_01
+minesweeper
+minesweeper_macos
+minesweeper_linux
+
+# IDE and editor files
+*.iml
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Archives (keep assets extracted, not zipped)
+*.zip
+
+# Java build directories
+bin/
+out/
+target/
+
+# C build directories
+build/
+dist/
