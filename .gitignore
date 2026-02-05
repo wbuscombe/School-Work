@@ -3,10 +3,15 @@
 *.exe
 *.out
 *.class
-project03_01
-minesweeper
-minesweeper_macos
-minesweeper_linux
+
+# C project executables (in their respective directories)
+Intermediate-C-Programming/Loan-Balance-Calculator/loan-balance
+Intermediate-C-Programming/Magic-Square/magic-square
+Intermediate-C-Programming/GCD-Calculator/gcd
+Intermediate-C-Programming/Eulers-Number/eulers-number
+Intermediate-C-Programming/Fraction-Calculator/fraction-calc
+Intermediate-C-Programming/Minesweeper/minesweeper
+Intermediate-C-Programming/IMDB-Database/imdb-query
 
 # IDE and editor files
 *.iml
