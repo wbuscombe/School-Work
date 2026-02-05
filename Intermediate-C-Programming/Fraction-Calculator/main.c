@@ -1,3 +1,21 @@
+/*
+ * FRACTION CALCULATOR
+ *
+ * A simple calculator that performs arithmetic operations on fractions.
+ * Supports: addition (+), subtraction (-), multiplication (*), division (/)
+ *
+ * Input format: operand operator operand
+ * Examples: 1/2 + 1/4
+ *           3 * 2/5
+ *           7/8 / 1/2
+ *
+ * OPTIMIZATION NOTES (2026):
+ * - Fixed critical division bug in functions.c
+ * - Added input validation and error handling
+ * - Improved fraction reduction to handle edge cases
+ * - Added division by zero protection
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -23,6 +41,16 @@ int main()
 
     printf("\n");
 
+    /*
+     * OPTIMIZATION: Added validation for zero denominators.
+     * Original code would proceed with invalid fractions, causing
+     * undefined behavior in calculations.
+     */
+    if (denom1 == 0 || denom2 == 0) {
+        printf("Error: Denominator cannot be zero!\n");
+        return 1;
+    }
+
     switch(op)
     {
     case '+':
@@ -46,7 +74,12 @@ int main()
         break;
     }
     default:
-        break;
+        /*
+         * OPTIMIZATION: Added error message for invalid operator.
+         * Original code silently did nothing, leaving result uninitialized.
+         */
+        printf("Error: Invalid operator '%c'. Use +, -, *, or /\n", op);
+        return 1;
     }
 
     reduceFraction(&resNumer, &resDenom);
