@@ -10,15 +10,15 @@ COMPILER_FLAGS = -Wall -std=c99 -I/opt/local/include
 #LINKER_FLAGS specifies the libraries we're linking against 
 LINKER_FLAGS = -lm -lsqlite3 -L/opt/local/lib 
 
-#OBJ_NAME specifies the name of our exectuable 
-OBJ_NAME = project06_01
+#OBJ_NAME specifies the name of our executable
+OBJ_NAME = imdb-query
 
-#This is the target that compiles our executable 
-all : $(OBJS) 
+#This is the target that compiles our executable
+all : $(OBJS)
 		$(CC) $(OBJS) $(COMPILER_FLAGS) $(LINKER_FLAGS) -o $(OBJ_NAME)
 
 #Clean
 .PHONY: clean
 
 clean:
-	rm -f *.o *~ project06_01
+	rm -f *.o *~ $(OBJ_NAME)
