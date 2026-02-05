@@ -66,12 +66,14 @@ jobs:
       - name: Build
         working-directory: 'Intermediate C Programming/Project03_01'
         run: |
-          # Use explicit path to sdl2-config from Homebrew
-          SDL2_CONFIG="$(brew --prefix sdl2)/bin/sdl2-config"
+          # Homebrew's sdl2-config --cflags returns -I.../include/SDL2
+          # but code uses #include <SDL2/SDL.h>, so we need parent dir
+          SDL2_INCLUDE="$(brew --prefix)/include"
+          SDL2_LIB="$(brew --prefix)/lib"
           cc main.c -Wall -std=c99 \
-            $($SDL2_CONFIG --cflags) \
-            $($SDL2_CONFIG --libs) \
-            -lSDL2_image -lSDL2_ttf -lSDL2_mixer \
+            -I"$SDL2_INCLUDE" \
+            -L"$SDL2_LIB" \
+            -lSDL2 -lSDL2_image -lSDL2_ttf -lSDL2_mixer \
             -o minesweeper
 
       - name: Prepare artifacts
