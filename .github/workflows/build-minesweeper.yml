@@ -48,6 +48,8 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew install sdl2 sdl2_image sdl2_ttf sdl2_mixer
+          # Add Homebrew to PATH for subsequent steps
+          echo "$(brew --prefix)/bin" >> $GITHUB_PATH
 
       - name: Install SDL2 (Windows)
         if: runner.os == 'Windows'
@@ -93,10 +95,10 @@ jobs:
         shell: cmd
         run: |
           gcc main.c -Wall -std=c99 ^
-            -IC:\SDL2\SDL2-2.30.10\x86_64-w64-mingw32\include\SDL2 ^
-            -IC:\SDL2\SDL2_image-2.8.4\x86_64-w64-mingw32\include\SDL2 ^
-            -IC:\SDL2\SDL2_ttf-2.22.0\x86_64-w64-mingw32\include\SDL2 ^
-            -IC:\SDL2\SDL2_mixer-2.8.0\x86_64-w64-mingw32\include\SDL2 ^
+            -IC:\SDL2\SDL2-2.30.10\x86_64-w64-mingw32\include ^
+            -IC:\SDL2\SDL2_image-2.8.4\x86_64-w64-mingw32\include ^
+            -IC:\SDL2\SDL2_ttf-2.22.0\x86_64-w64-mingw32\include ^
+            -IC:\SDL2\SDL2_mixer-2.8.0\x86_64-w64-mingw32\include ^
             -LC:\SDL2\SDL2-2.30.10\x86_64-w64-mingw32\lib ^
             -LC:\SDL2\SDL2_image-2.8.4\x86_64-w64-mingw32\lib ^
             -LC:\SDL2\SDL2_ttf-2.22.0\x86_64-w64-mingw32\lib ^
