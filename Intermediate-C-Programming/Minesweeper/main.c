@@ -42,11 +42,71 @@
 #define CLOCK_GUTTER_X ((CLOCK_PANEL_W * (1.0 / 3.0)) / 2.0)
 #define CLOCK_GUTTER_Y ((CLOCK_PANEL_H * (7.0 / 9.0)) / 2.0)
 
-// Play Again Button Dimensions
-#define BUTTON_W (CLOCK_W)
-#define BUTTON_H (CLOCK_H * 0.4)
-#define BUTTON_X (GRID_PANEL_W + CLOCK_GUTTER_X)
-#define BUTTON_Y (CLOCK_GUTTER_Y + CLOCK_H + 40)
+// Side Panel Button Dimensions (NEW GAME, RESET, EXIT)
+#define BUTTON_W (CLOCK_PANEL_W * 0.75)
+#define BUTTON_H (CLOCK_H * 0.35)
+#define BUTTON_X (GRID_PANEL_W + (CLOCK_PANEL_W - BUTTON_W) / 2)
+#define BUTTON_SPACING 10
+#define NEWGAME_BTN_Y (CLOCK_GUTTER_Y + CLOCK_H + 30)
+#define RESET_BTN_Y (NEWGAME_BTN_Y + BUTTON_H + BUTTON_SPACING)
+#define EXIT_BTN_Y (RESET_BTN_Y + BUTTON_H + BUTTON_SPACING)
+
+// Menu Button Dimensions (centered on grid panel)
+#define MENU_BTN_W 300
+#define MENU_BTN_H 60
+#define MENU_BTN_X ((GRID_PANEL_W - MENU_BTN_W) / 2)
+#define MENU_BTN_SPACING 20
+
+// Popup Dimensions
+#define POPUP_W 500
+#define POPUP_H 300
+#define POPUP_X ((GRID_PANEL_W - POPUP_W) / 2)
+#define POPUP_Y ((GRID_PANEL_H - POPUP_H) / 2)
+
+// Difficulty time settings (in seconds)
+#define TIME_EASY 120
+#define TIME_MEDIUM 90
+#define TIME_HARD 60
+#define TIME_EXTREME 30
+
+// Screen states
+typedef enum {
+	SCREEN_MAIN_MENU,
+	SCREEN_DIFFICULTY,
+	SCREEN_PLAYING,
+	SCREEN_EXTREME_PLUS_PROMPT,
+	SCREEN_CONGRATURATION
+} ScreenState;
+
+// Difficulty levels
+typedef enum {
+	DIFF_EASY,
+	DIFF_MEDIUM,
+	DIFF_HARD,
+	DIFF_EXTREME,
+	DIFF_EXTREME_PLUS
+} Difficulty;
+
+// Button hover states for side panel
+typedef enum {
+	HOVER_NONE,
+	HOVER_NEWGAME,
+	HOVER_RESET,
+	HOVER_EXIT
+} SidePanelHover;
+
+// Button hover states for menus
+typedef enum {
+	MENU_HOVER_NONE,
+	MENU_HOVER_NEWGAME,
+	MENU_HOVER_EASY,
+	MENU_HOVER_MEDIUM,
+	MENU_HOVER_HARD,
+	MENU_HOVER_EXTREME,
+	MENU_HOVER_YES,
+	MENU_HOVER_NO,
+	MENU_HOVER_CONTINUE
+} MenuHover;
 
 typedef struct GameState
 {
@@ -64,6 +124,9 @@ typedef struct GameState
 
 	SDL_Texture *tileText[GRID_ROWS][GRID_COLS];		// Tile Text
 	TTF_Font *tileFont;									// Tile Font
+	TTF_Font *buttonFont;								// Button Font (supports letters)
+	TTF_Font *smallButtonFont;							// Smaller button font for longer text
+	TTF_Font *menuFont;									// Larger font for menu titles
 
 	Mix_Music *gameLoopMusic;	// Game Loop Music
 	Mix_Chunk *victorySound;	// Victory Sound
@@ -71,7 +134,7 @@ typedef struct GameState
 	Mix_Chunk *explosionSound;	// Explosion Sound
 
 	SDL_Texture *explosionAnimation;	// Explosion Animation
-	SDL_Texture *buttonText;			// Play Again Button Text
+	SDL_Texture *buttonText;			// Button Text (reused)
 
 	int adjNum[GRID_ROWS][GRID_COLS];		// Adjacent Mines
 	bool mines[GRID_ROWS][GRID_COLS];		// Mines
@@ -83,19 +146,23 @@ typedef struct GameState
 	bool defeat;			// Defeat Flag
 	bool mineFound;			// Mine Found Flag
 	int time;				// Current Game Time
+	int baseTime;			// Time to reset to (depends on difficulty)
 	unsigned int lastTime;	// Time Last Checked
 	int numRevealed;		// Number of Tiles Revealed
 	int mineX;				// X Coordinate of Mine Found
 	int mineY;				// Y Coordinate of Mine Found
 
-	// FIX: Non-blocking end-game animation state.
-	// Previously, SDL_Delay() calls blocked the main thread for 15+ seconds,
-	// causing the app to become unresponsive (spinning pinwheel on macOS).
-	// Now we track animation phases and timing to allow event processing.
-	int endGamePhase;				// 0=playing, 1=defeat sound, 2=explosion, 3=done
+	// Non-blocking end-game animation state
+	int endGamePhase;				// 0=playing, 1=defeat sound, 2=explosion, 3=done, 4=game over screen
 	unsigned int endGameStartTime;	// Timestamp when end-game phase started
 	bool explosionSoundPlayed;		// Has explosion sound been played
-	bool buttonHovered;				// Is mouse hovering over Play Again button
+
+	// UI state
+	ScreenState screenState;		// Current screen
+	Difficulty difficulty;			// Current difficulty
+	int extremePlusTime;			// Current EXTREME+ time limit
+	SidePanelHover sidePanelHover;	// Which side panel button is hovered
+	MenuHover menuHover;			// Which menu button is hovered
 } GameState;
 
 void cleanupAndClose(int exitCode, GameState *state);
@@ -108,18 +175,32 @@ void initGrid(GameState *state);
 
 void resetGame(GameState *state);
 
+void startNewGame(GameState *state, Difficulty diff);
+
 void updateRevealed(GameState *state);
 
 void clearLocalZeroes(GameState *state, int i, int j);
 
 void draw(GameState *state, bool explosionFlag);
 
-void drawButton(GameState *state);
+void drawSidePanelButtons(GameState *state);
+
+void drawMainMenu(GameState *state);
+
+void drawDifficultyMenu(GameState *state);
+
+void drawExtremePlusPrompt(GameState *state);
+
+void drawCongraturation(GameState *state);
+
+void drawMenuButton(GameState *state, int x, int y, int w, int h, const char *text, bool hovered);
+
+int getTimeForDifficulty(Difficulty diff, int extremePlusTime);
 
 int main(int argc, char *argv[])
 {
 	// Initialize GameState
-	GameState state = {.window=NULL, .renderer=NULL, .buffer=NULL, .gridPanel=NULL, .clockPanel=NULL, .tile=NULL, .mine=NULL, .clockText=NULL, .clockFont=NULL, .tileFont=NULL, .gameLoopMusic=NULL, .victorySound=NULL, .defeatSound=NULL, .explosionSound=NULL, .explosionAnimation=NULL, .buttonText=NULL};
+	GameState state = {.window=NULL, .renderer=NULL, .buffer=NULL, .gridPanel=NULL, .clockPanel=NULL, .tile=NULL, .mine=NULL, .clockText=NULL, .clockFont=NULL, .tileFont=NULL, .buttonFont=NULL, .smallButtonFont=NULL, .menuFont=NULL, .gameLoopMusic=NULL, .victorySound=NULL, .defeatSound=NULL, .explosionSound=NULL, .explosionAnimation=NULL, .buttonText=NULL};
 	memset(state.tileText, 0, sizeof(state.tileText[0][0]) * GRID_ROWS * GRID_COLS);
 	memset(state.adjNum, 0, sizeof(state.adjNum[0][0]) * GRID_ROWS * GRID_COLS);
 	memset(state.mines, false, sizeof(state.mines[0][0]) * GRID_ROWS * GRID_COLS);
@@ -130,6 +211,7 @@ int main(int argc, char *argv[])
 	state.defeat = false;
 	state.mineFound = false;
 	state.time = MAX_TIME;
+	state.baseTime = MAX_TIME;
 	state.lastTime = 0;
 	state.numRevealed = 0;
 	state.mineX = 0;
@@ -137,15 +219,16 @@ int main(int argc, char *argv[])
 	state.endGamePhase = 0;
 	state.endGameStartTime = 0;
 	state.explosionSoundPlayed = false;
-	state.buttonHovered = false;
+
+	// UI state - start at main menu
+	state.screenState = SCREEN_MAIN_MENU;
+	state.difficulty = DIFF_HARD;  // Default
+	state.extremePlusTime = TIME_EXTREME;
+	state.sidePanelHover = HOVER_NONE;
+	state.menuHover = MENU_HOVER_NONE;
 
 	if (setupSDL("Extreme Minesweeper - by Will Buscombe", WINDOW_W, WINDOW_H, &state))
 	{
-		// FIX: Replaced blocking post-game loop with unified main loop.
-		// Previously, gameLoop() blocked for 15+ seconds on defeat, then
-		// control passed to a separate while(!shouldClose()) loop.
-		// Now gameLoop() handles everything including end-game animations
-		// and Play Again button, keeping the app responsive throughout.
 		gameLoop(&state);
 	}
 
@@ -169,6 +252,9 @@ void cleanupAndClose(int exitCode, GameState *state)
 			if (state->tileText[i][j])
 				SDL_DestroyTexture(state->tileText[i][j]);
 	if (state->tileFont)	TTF_CloseFont(state->tileFont);
+	if (state->buttonFont)	TTF_CloseFont(state->buttonFont);
+	if (state->smallButtonFont)	TTF_CloseFont(state->smallButtonFont);
+	if (state->menuFont)	TTF_CloseFont(state->menuFont);
 	if (state->gameLoopMusic)	Mix_FreeMusic(state->gameLoopMusic);
 	if (state->victorySound)	Mix_FreeChunk(state->victorySound);
 	if (state->defeatSound)		Mix_FreeChunk(state->defeatSound);
@@ -301,6 +387,41 @@ bool setupSDL(char *title, int width, int height, GameState *state)
     if (!(state->tileFont))
        	return false;
 
+    // Button Font - use system font that supports letters
+    // Try common system font paths for different platforms
+    state->buttonFont = TTF_OpenFont("/System/Library/Fonts/Helvetica.ttc", BUTTON_H * 0.6);
+    if (!(state->buttonFont))
+        state->buttonFont = TTF_OpenFont("/Library/Fonts/Arial.ttf", BUTTON_H * 0.6);
+    if (!(state->buttonFont))
+        state->buttonFont = TTF_OpenFont("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", BUTTON_H * 0.6);
+    if (!(state->buttonFont))
+        state->buttonFont = TTF_OpenFont("C:\\Windows\\Fonts\\arial.ttf", BUTTON_H * 0.6);
+    if (!(state->buttonFont))
+        // Fallback to tile font if no system font found (will show boxes but won't crash)
+        state->buttonFont = state->tileFont;
+
+    // Small Button Font - for longer button text like "NEW GAME"
+    state->smallButtonFont = TTF_OpenFont("/System/Library/Fonts/Helvetica.ttc", BUTTON_H * 0.45);
+    if (!(state->smallButtonFont))
+        state->smallButtonFont = TTF_OpenFont("/Library/Fonts/Arial.ttf", BUTTON_H * 0.45);
+    if (!(state->smallButtonFont))
+        state->smallButtonFont = TTF_OpenFont("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", BUTTON_H * 0.45);
+    if (!(state->smallButtonFont))
+        state->smallButtonFont = TTF_OpenFont("C:\\Windows\\Fonts\\arial.ttf", BUTTON_H * 0.45);
+    if (!(state->smallButtonFont))
+        state->smallButtonFont = state->buttonFont;
+
+    // Menu Font - larger font for menu buttons
+    state->menuFont = TTF_OpenFont("/System/Library/Fonts/Helvetica.ttc", MENU_BTN_H * 0.5);
+    if (!(state->menuFont))
+        state->menuFont = TTF_OpenFont("/Library/Fonts/Arial.ttf", MENU_BTN_H * 0.5);
+    if (!(state->menuFont))
+        state->menuFont = TTF_OpenFont("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", MENU_BTN_H * 0.5);
+    if (!(state->menuFont))
+        state->menuFont = TTF_OpenFont("C:\\Windows\\Fonts\\arial.ttf", MENU_BTN_H * 0.5);
+    if (!(state->menuFont))
+        state->menuFont = state->buttonFont;
+
     // Game Loop Music
     filename = "game_loop.wav";
     basePath = SDL_GetBasePath();
@@ -379,17 +500,6 @@ void gameLoop(GameState *state)
 	unsigned int currentTime = 0;
 	bool running = true;
 
-	initGrid(state);
-
-	// FIX: Unified non-blocking main loop.
-	// Previously had blocking SDL_Delay() calls that froze the app for 15+ seconds.
-	// Now uses state machine (endGamePhase) to handle end-game animations
-	// while keeping the event loop responsive. Phases:
-	// 0 = active gameplay
-	// 1 = defeat sound playing (8 second wait)
-	// 2 = explosion animation (350ms)
-	// 3 = post-explosion wait (7 seconds)
-	// 4 = game over, showing Play Again button
 	while (running)
 	{
 		SDL_Event event;
@@ -403,76 +513,270 @@ void gameLoop(GameState *state)
 				break;
 			}
 
-			// Handle mouse motion for button hover effect
-			if (event.type == SDL_MOUSEMOTION && state->endGamePhase == 4)
+			int mx = 0, my = 0;
+			if (event.type == SDL_MOUSEMOTION)
 			{
-				int mx = event.motion.x;
-				int my = event.motion.y;
-				state->buttonHovered = (mx >= BUTTON_X && mx <= BUTTON_X + BUTTON_W &&
-				                        my >= BUTTON_Y && my <= BUTTON_Y + BUTTON_H);
+				mx = event.motion.x;
+				my = event.motion.y;
 			}
 
-			// Handle mouse clicks
-			if (event.type == SDL_MOUSEBUTTONDOWN)
+			// Handle different screens
+			switch (state->screenState)
 			{
-				int clickX = event.button.x;
-				int clickY = event.button.y;
-
-				// Check for Play Again button click when game is over
-				if (state->endGamePhase == 4)
+				case SCREEN_MAIN_MENU:
 				{
-					if (clickX >= BUTTON_X && clickX <= BUTTON_X + BUTTON_W &&
-					    clickY >= BUTTON_Y && clickY <= BUTTON_Y + BUTTON_H)
+					// Hover detection for NEW GAME button
+					if (event.type == SDL_MOUSEMOTION)
 					{
-						resetGame(state);
-						continue;
+						int btnY = (GRID_PANEL_H - MENU_BTN_H) / 2;
+						if (mx >= MENU_BTN_X && mx <= MENU_BTN_X + MENU_BTN_W &&
+						    my >= btnY && my <= btnY + MENU_BTN_H)
+							state->menuHover = MENU_HOVER_NEWGAME;
+						else
+							state->menuHover = MENU_HOVER_NONE;
 					}
+
+					// Click detection
+					if (event.type == SDL_MOUSEBUTTONDOWN)
+					{
+						int btnY = (GRID_PANEL_H - MENU_BTN_H) / 2;
+						if (event.button.x >= MENU_BTN_X && event.button.x <= MENU_BTN_X + MENU_BTN_W &&
+						    event.button.y >= btnY && event.button.y <= btnY + MENU_BTN_H)
+						{
+							state->screenState = SCREEN_DIFFICULTY;
+							state->menuHover = MENU_HOVER_NONE;
+						}
+					}
+					break;
 				}
 
-				// Handle tile clicks during active gameplay
-				if (state->endGamePhase == 0 && !state->gameOver)
+				case SCREEN_DIFFICULTY:
 				{
-					// If Click Outside of Tile Grid
-					if ((clickX < GRID_GUTTER_X) || (clickX > (GRID_GUTTER_X + GRID_W)) ||
-					    (clickY < GRID_GUTTER_Y) || (clickY > (GRID_GUTTER_Y + GRID_H)))
-						continue;
+					// Calculate button positions (centered, stacked vertically)
+					int startY = (GRID_PANEL_H - (4 * MENU_BTN_H + 3 * MENU_BTN_SPACING)) / 2;
+					int easyY = startY;
+					int mediumY = startY + MENU_BTN_H + MENU_BTN_SPACING;
+					int hardY = startY + 2 * (MENU_BTN_H + MENU_BTN_SPACING);
+					int extremeY = startY + 3 * (MENU_BTN_H + MENU_BTN_SPACING);
 
-					// If First Move of Game Start Timer
-					if (!(state->gameStarted))
+					// Hover detection
+					if (event.type == SDL_MOUSEMOTION)
 					{
-						state->gameStarted = true;
-						state->lastTime = SDL_GetTicks();
-						Mix_PlayMusic(state->gameLoopMusic, -1);
+						state->menuHover = MENU_HOVER_NONE;
+						if (mx >= MENU_BTN_X && mx <= MENU_BTN_X + MENU_BTN_W)
+						{
+							if (my >= easyY && my <= easyY + MENU_BTN_H)
+								state->menuHover = MENU_HOVER_EASY;
+							else if (my >= mediumY && my <= mediumY + MENU_BTN_H)
+								state->menuHover = MENU_HOVER_MEDIUM;
+							else if (my >= hardY && my <= hardY + MENU_BTN_H)
+								state->menuHover = MENU_HOVER_HARD;
+							else if (my >= extremeY && my <= extremeY + MENU_BTN_H)
+								state->menuHover = MENU_HOVER_EXTREME;
+						}
 					}
 
-					int tileX = (clickX - GRID_GUTTER_X) / TILE_W;
-					int tileY = (clickY - GRID_GUTTER_Y) / TILE_H;
-
-					// Reveal Clicked Tile
-					state->revealed[tileY][tileX] = true;
-
-					// If Clicked Tile Reveals a Mine Game is Over
-					if (state->mines[tileY][tileX])
+					// Click detection
+					if (event.type == SDL_MOUSEBUTTONDOWN)
 					{
-						state->gameOver = true;
-						state->defeat = true;
-						state->mineFound = true;
-						state->mineX = tileX;
-						state->mineY = tileY;
+						int clickX = event.button.x;
+						int clickY = event.button.y;
+						if (clickX >= MENU_BTN_X && clickX <= MENU_BTN_X + MENU_BTN_W)
+						{
+							if (clickY >= easyY && clickY <= easyY + MENU_BTN_H)
+								startNewGame(state, DIFF_EASY);
+							else if (clickY >= mediumY && clickY <= mediumY + MENU_BTN_H)
+								startNewGame(state, DIFF_MEDIUM);
+							else if (clickY >= hardY && clickY <= hardY + MENU_BTN_H)
+								startNewGame(state, DIFF_HARD);
+							else if (clickY >= extremeY && clickY <= extremeY + MENU_BTN_H)
+								startNewGame(state, DIFF_EXTREME);
+						}
 					}
-					else if (state->adjNum[tileY][tileX] == 0)
-					{
-						clearLocalZeroes(state, tileY, tileX);
-					}
+					break;
 				}
-			}
 
-			// Allow ESC or any key to close during end-game display
-			if (event.type == SDL_KEYDOWN && state->endGamePhase == 4)
-			{
-				if (event.key.keysym.sym == SDLK_ESCAPE)
+				case SCREEN_PLAYING:
 				{
-					running = false;
+					// Side panel button hover detection
+					if (event.type == SDL_MOUSEMOTION)
+					{
+						state->sidePanelHover = HOVER_NONE;
+						if (mx >= BUTTON_X && mx <= BUTTON_X + BUTTON_W)
+						{
+							if (my >= NEWGAME_BTN_Y && my <= NEWGAME_BTN_Y + BUTTON_H)
+								state->sidePanelHover = HOVER_NEWGAME;
+							else if (my >= RESET_BTN_Y && my <= RESET_BTN_Y + BUTTON_H)
+								state->sidePanelHover = HOVER_RESET;
+							else if (my >= EXIT_BTN_Y && my <= EXIT_BTN_Y + BUTTON_H)
+								state->sidePanelHover = HOVER_EXIT;
+						}
+					}
+
+					// Click detection
+					if (event.type == SDL_MOUSEBUTTONDOWN)
+					{
+						int clickX = event.button.x;
+						int clickY = event.button.y;
+
+						// Side panel buttons
+						if (clickX >= BUTTON_X && clickX <= BUTTON_X + BUTTON_W)
+						{
+							if (clickY >= NEWGAME_BTN_Y && clickY <= NEWGAME_BTN_Y + BUTTON_H)
+							{
+								Mix_HaltMusic();
+								Mix_HaltChannel(-1);
+								state->screenState = SCREEN_MAIN_MENU;
+								state->menuHover = MENU_HOVER_NONE;
+								continue;
+							}
+							else if (clickY >= RESET_BTN_Y && clickY <= RESET_BTN_Y + BUTTON_H)
+							{
+								resetGame(state);
+								continue;
+							}
+							else if (clickY >= EXIT_BTN_Y && clickY <= EXIT_BTN_Y + BUTTON_H)
+							{
+								running = false;
+								break;
+							}
+						}
+
+						// Tile clicks during active gameplay
+						if (state->endGamePhase == 0 && !state->gameOver)
+						{
+							if ((clickX >= GRID_GUTTER_X) && (clickX <= (GRID_GUTTER_X + GRID_W)) &&
+							    (clickY >= GRID_GUTTER_Y) && (clickY <= (GRID_GUTTER_Y + GRID_H)))
+							{
+								// Start timer on first click
+								if (!(state->gameStarted))
+								{
+									state->gameStarted = true;
+									state->lastTime = SDL_GetTicks();
+									Mix_PlayMusic(state->gameLoopMusic, -1);
+								}
+
+								int tileX = (clickX - GRID_GUTTER_X) / TILE_W;
+								int tileY = (clickY - GRID_GUTTER_Y) / TILE_H;
+
+								state->revealed[tileY][tileX] = true;
+
+								if (state->mines[tileY][tileX])
+								{
+									state->gameOver = true;
+									state->defeat = true;
+									state->mineFound = true;
+									state->mineX = tileX;
+									state->mineY = tileY;
+								}
+								else if (state->adjNum[tileY][tileX] == 0)
+								{
+									clearLocalZeroes(state, tileY, tileX);
+								}
+							}
+						}
+					}
+
+					// ESC to exit
+					if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE)
+					{
+						running = false;
+						break;
+					}
+					break;
+				}
+
+				case SCREEN_EXTREME_PLUS_PROMPT:
+				{
+					// YES/NO button positions
+					int btnW = 120;
+					int btnH = 50;
+					int spacing = 40;
+					int yesX = POPUP_X + (POPUP_W / 2) - btnW - (spacing / 2);
+					int noX = POPUP_X + (POPUP_W / 2) + (spacing / 2);
+					int btnY = POPUP_Y + POPUP_H - btnH - 30;
+
+					// Hover detection
+					if (event.type == SDL_MOUSEMOTION)
+					{
+						state->menuHover = MENU_HOVER_NONE;
+						if (my >= btnY && my <= btnY + btnH)
+						{
+							if (mx >= yesX && mx <= yesX + btnW)
+								state->menuHover = MENU_HOVER_YES;
+							else if (mx >= noX && mx <= noX + btnW)
+								state->menuHover = MENU_HOVER_NO;
+						}
+					}
+
+					// Click detection
+					if (event.type == SDL_MOUSEBUTTONDOWN)
+					{
+						int clickX = event.button.x;
+						int clickY = event.button.y;
+						if (clickY >= btnY && clickY <= btnY + btnH)
+						{
+							if (clickX >= yesX && clickX <= yesX + btnW)
+							{
+								// Accept EXTREME+ challenge
+								// Calculate new time
+								if (state->extremePlusTime > 20)
+									state->extremePlusTime -= 5;
+								else
+									state->extremePlusTime -= 2;
+
+								// Check for final victory (would go to 0 or below)
+								if (state->extremePlusTime <= 0)
+								{
+									state->screenState = SCREEN_CONGRATURATION;
+									state->menuHover = MENU_HOVER_NONE;
+								}
+								else
+								{
+									startNewGame(state, DIFF_EXTREME_PLUS);
+								}
+							}
+							else if (clickX >= noX && clickX <= noX + btnW)
+							{
+								// Decline - go to main menu
+								state->screenState = SCREEN_MAIN_MENU;
+								state->menuHover = MENU_HOVER_NONE;
+								state->extremePlusTime = TIME_EXTREME;  // Reset for next time
+							}
+						}
+					}
+					break;
+				}
+
+				case SCREEN_CONGRATURATION:
+				{
+					// Continue button
+					int btnW = 150;
+					int btnH = 50;
+					int btnX = POPUP_X + (POPUP_W - btnW) / 2;
+					int btnY = POPUP_Y + POPUP_H - btnH - 20;
+
+					// Hover detection
+					if (event.type == SDL_MOUSEMOTION)
+					{
+						if (mx >= btnX && mx <= btnX + btnW &&
+						    my >= btnY && my <= btnY + btnH)
+							state->menuHover = MENU_HOVER_CONTINUE;
+						else
+							state->menuHover = MENU_HOVER_NONE;
+					}
+
+					// Click detection
+					if (event.type == SDL_MOUSEBUTTONDOWN)
+					{
+						if (event.button.x >= btnX && event.button.x <= btnX + btnW &&
+						    event.button.y >= btnY && event.button.y <= btnY + btnH)
+						{
+							state->screenState = SCREEN_MAIN_MENU;
+							state->menuHover = MENU_HOVER_NONE;
+							state->extremePlusTime = TIME_EXTREME;  // Reset for next time
+						}
+					}
 					break;
 				}
 			}
@@ -480,97 +784,144 @@ void gameLoop(GameState *state)
 
 		if (!running) break;
 
-		// Game logic for active gameplay (phase 0)
-		if (state->endGamePhase == 0 && !state->gameOver)
+		// Game logic for SCREEN_PLAYING
+		if (state->screenState == SCREEN_PLAYING)
 		{
-			// Timer logic
-			if (state->time == 0)
+			// Active gameplay logic (phase 0)
+			if (state->endGamePhase == 0 && !state->gameOver)
 			{
-				state->gameOver = true;
-				state->defeat = true;
-			}
-
-			if (state->gameStarted && !state->gameOver)
-			{
-				currentTime = SDL_GetTicks();
-				if (currentTime >= (state->lastTime + 1000))
+				// Timer logic
+				if (state->time == 0)
 				{
-					state->time -= 1;
-					state->lastTime = currentTime;
+					state->gameOver = true;
+					state->defeat = true;
+				}
+
+				if (state->gameStarted && !state->gameOver)
+				{
+					currentTime = SDL_GetTicks();
+					if (currentTime >= (state->lastTime + 1000))
+					{
+						state->time -= 1;
+						state->lastTime = currentTime;
+					}
+				}
+
+				// Check Number of Revealed Tiles
+				updateRevealed(state);
+
+				// Check if Victorious
+				if (((GRID_ROWS * GRID_COLS) - state->numRevealed) == MINES)
+				{
+					state->gameOver = true;
+					state->victory = true;
 				}
 			}
 
-			// Check Number of Revealed Tiles
-			updateRevealed(state);
-
-			// Check if Victorious
-			if (((GRID_ROWS * GRID_COLS) - state->numRevealed) == MINES)
+			// Handle transition to end-game phases
+			if (state->gameOver && state->endGamePhase == 0)
 			{
-				state->gameOver = true;
-				state->victory = true;
-			}
-		}
+				Mix_HaltMusic();
 
-		// Handle transition to end-game phases
-		if (state->gameOver && state->endGamePhase == 0)
-		{
-			Mix_HaltMusic();
-
-			if (state->victory)
-			{
-				Mix_PlayChannel(-1, state->victorySound, 0);
-				state->endGamePhase = 4;  // Skip to final phase for victory
-			}
-			else
-			{
-				Mix_PlayChannel(-1, state->defeatSound, 0);
-				state->endGamePhase = 1;
-				state->endGameStartTime = SDL_GetTicks();
-			}
-		}
-
-		// Phase 1: Wait 8 seconds after defeat sound
-		if (state->endGamePhase == 1)
-		{
-			if (SDL_GetTicks() >= state->endGameStartTime + 8000)
-			{
-				if (state->mineFound)
+				if (state->victory)
 				{
-					Mix_PlayChannel(-1, state->explosionSound, 0);
-					state->endGamePhase = 2;
-					state->endGameStartTime = SDL_GetTicks();
+					Mix_PlayChannel(-1, state->victorySound, 0);
+					// Check if EXTREME mode victory - prompt for EXTREME+
+					if (state->difficulty == DIFF_EXTREME || state->difficulty == DIFF_EXTREME_PLUS)
+					{
+						state->endGamePhase = 4;
+						state->endGameStartTime = SDL_GetTicks();
+					}
+					else
+					{
+						state->endGamePhase = 4;
+					}
 				}
 				else
 				{
-					state->endGamePhase = 4;  // No mine found, skip explosion
+					Mix_PlayChannel(-1, state->defeatSound, 0);
+					state->endGamePhase = 1;
+					state->endGameStartTime = SDL_GetTicks();
+				}
+			}
+
+			// Phase 1: Wait 8 seconds after defeat sound
+			if (state->endGamePhase == 1)
+			{
+				if (SDL_GetTicks() >= state->endGameStartTime + 8000)
+				{
+					if (state->mineFound)
+					{
+						Mix_PlayChannel(-1, state->explosionSound, 0);
+						state->endGamePhase = 2;
+						state->endGameStartTime = SDL_GetTicks();
+					}
+					else
+					{
+						state->endGamePhase = 4;
+					}
+				}
+			}
+
+			// Phase 2: Explosion animation (350ms)
+			if (state->endGamePhase == 2)
+			{
+				if (SDL_GetTicks() >= state->endGameStartTime + 350)
+				{
+					state->endGamePhase = 3;
+					state->endGameStartTime = SDL_GetTicks();
+				}
+			}
+
+			// Phase 3: Wait 7 seconds after explosion
+			if (state->endGamePhase == 3)
+			{
+				if (SDL_GetTicks() >= state->endGameStartTime + 7000)
+				{
+					state->endGamePhase = 4;
+				}
+			}
+
+			// Phase 4: Game over - check for EXTREME+ prompt after a delay
+			if (state->endGamePhase == 4 && state->victory)
+			{
+				if (state->difficulty == DIFF_EXTREME || state->difficulty == DIFF_EXTREME_PLUS)
+				{
+					// Show EXTREME+ prompt after short delay
+					if (SDL_GetTicks() >= state->endGameStartTime + 2000)
+					{
+						state->screenState = SCREEN_EXTREME_PLUS_PROMPT;
+						state->menuHover = MENU_HOVER_NONE;
+					}
 				}
 			}
 		}
 
-		// Phase 2: Explosion animation (350ms)
-		if (state->endGamePhase == 2)
+		// Draw based on current screen
+		switch (state->screenState)
 		{
-			if (SDL_GetTicks() >= state->endGameStartTime + 350)
+			case SCREEN_MAIN_MENU:
+				drawMainMenu(state);
+				break;
+			case SCREEN_DIFFICULTY:
+				drawDifficultyMenu(state);
+				break;
+			case SCREEN_PLAYING:
 			{
-				state->endGamePhase = 3;
-				state->endGameStartTime = SDL_GetTicks();
+				bool showExplosion = (state->endGamePhase == 2);
+				draw(state, showExplosion);
+				break;
 			}
+			case SCREEN_EXTREME_PLUS_PROMPT:
+				draw(state, false);  // Show game in background
+				drawExtremePlusPrompt(state);
+				break;
+			case SCREEN_CONGRATURATION:
+				draw(state, false);  // Show game in background
+				drawCongraturation(state);
+				break;
 		}
 
-		// Phase 3: Wait 7 seconds after explosion
-		if (state->endGamePhase == 3)
-		{
-			if (SDL_GetTicks() >= state->endGameStartTime + 7000)
-			{
-				state->endGamePhase = 4;
-			}
-		}
-
-		// Draw current state
-		bool showExplosion = (state->endGamePhase == 2);
-		draw(state, showExplosion);
-
-		// Small delay to prevent CPU spinning (VSync should handle this but just in case)
 		SDL_Delay(1);
 	}
 
@@ -626,12 +977,16 @@ void initGrid(GameState *state)
 		}
 	}
 
-	// Set Timer
-	state->time = MAX_TIME;
+	// Set Timer based on current difficulty
+	state->time = state->baseTime;
 }
 
 void resetGame(GameState *state)
 {
+	// Stop any playing music/sounds for a fresh start
+	Mix_HaltMusic();
+	Mix_HaltChannel(-1);  // Stop all sound effect channels
+
 	// Clear tile textures to prevent memory leak on reset
 	for (int i = 0; i < GRID_ROWS; ++i)
 	{
@@ -656,7 +1011,7 @@ void resetGame(GameState *state)
 	state->victory = false;
 	state->defeat = false;
 	state->mineFound = false;
-	state->time = MAX_TIME;
+	state->time = state->baseTime;  // Use baseTime for current difficulty
 	state->lastTime = 0;
 	state->numRevealed = 0;
 	state->mineX = 0;
@@ -666,10 +1021,34 @@ void resetGame(GameState *state)
 	state->endGamePhase = 0;
 	state->endGameStartTime = 0;
 	state->explosionSoundPlayed = false;
-	state->buttonHovered = false;
+	state->sidePanelHover = HOVER_NONE;
 
 	// Re-initialize the grid with new mine positions
 	initGrid(state);
+}
+
+void startNewGame(GameState *state, Difficulty diff)
+{
+	state->difficulty = diff;
+	state->baseTime = getTimeForDifficulty(diff, state->extremePlusTime);
+	state->screenState = SCREEN_PLAYING;
+	state->menuHover = MENU_HOVER_NONE;
+
+	// Reset game state
+	resetGame(state);
+}
+
+int getTimeForDifficulty(Difficulty diff, int extremePlusTime)
+{
+	switch (diff)
+	{
+		case DIFF_EASY:   return TIME_EASY;
+		case DIFF_MEDIUM: return TIME_MEDIUM;
+		case DIFF_HARD:   return TIME_HARD;
+		case DIFF_EXTREME: return TIME_EXTREME;
+		case DIFF_EXTREME_PLUS: return extremePlusTime;
+		default: return TIME_HARD;
+	}
 }
 
 void updateRevealed(GameState *state)
@@ -877,7 +1256,7 @@ void draw(GameState *state, bool explosionFlag)
 	clock.w = CLOCK_W;
 	clock.h = CLOCK_H;
 
-	char strTime[3];
+	char strTime[4];  // Support 3-digit times (up to 999)
 
 	if (state->time < 10)
 		sprintf(strTime, "0%d", state->time);
@@ -923,66 +1302,245 @@ void draw(GameState *state, bool explosionFlag)
 		SDL_RenderCopyEx(state->renderer, state->explosionAnimation, &explosionSource, &explosionDest, 0, NULL, SDL_FLIP_NONE);
 	}
 
-	// Draw Play Again button when game is over and end-game animation is complete
-	if (state->endGamePhase == 4)
-	{
-		drawButton(state);
-	}
+	// Draw side panel buttons (NEW GAME, RESET, EXIT)
+	drawSidePanelButtons(state);
 
 	// Draw to the screen
 	SDL_RenderPresent(state->renderer);
 }
 
-void drawButton(GameState *state)
+// Helper function to draw a single button
+void drawSingleButton(GameState *state, int x, int y, int w, int h, const char *text, bool hovered, TTF_Font *font)
 {
-	// Button background - matches the dark panel aesthetic
-	SDL_Rect buttonRect;
-	buttonRect.x = BUTTON_X;
-	buttonRect.y = BUTTON_Y;
-	buttonRect.w = BUTTON_W;
-	buttonRect.h = BUTTON_H;
+	SDL_Rect buttonRect = {x, y, w, h};
 
-	// Draw button with hover effect
-	if (state->buttonHovered)
-	{
-		// Lighter shade when hovered
-		SDL_SetRenderDrawColor(state->renderer, 80, 80, 80, 0xFF);
-	}
+	// Draw button with hover effect - grey tones
+	if (hovered)
+		SDL_SetRenderDrawColor(state->renderer, 160, 160, 160, 0xFF);
 	else
-	{
-		// Dark background matching clock box
-		SDL_SetRenderDrawColor(state->renderer, 40, 40, 40, 0xFF);
-	}
+		SDL_SetRenderDrawColor(state->renderer, 128, 128, 128, 0xFF);
 	SDL_RenderFillRect(state->renderer, &buttonRect);
 
-	// Draw border
-	SDL_SetRenderDrawColor(state->renderer, 100, 100, 100, 0xFF);
+	// Draw border - darker grey
+	SDL_SetRenderDrawColor(state->renderer, 80, 80, 80, 0xFF);
 	SDL_RenderDrawRect(state->renderer, &buttonRect);
 
 	// Render button text
-	SDL_Color textColor = {200, 200, 200, 0xFF};
-	if (state->buttonHovered)
-	{
-		textColor.r = 255;
-		textColor.g = 255;
-		textColor.b = 255;
-	}
+	SDL_Color textColor = hovered ? (SDL_Color){0, 0, 0, 0xFF} : (SDL_Color){30, 30, 30, 0xFF};
 
-	SDL_Surface *textSurface = TTF_RenderText_Blended(state->tileFont, "Play Again", textColor);
+	SDL_Surface *textSurface = TTF_RenderText_Blended(font, text, textColor);
 	if (textSurface)
 	{
-		if (state->buttonText) SDL_DestroyTexture(state->buttonText);
-		state->buttonText = SDL_CreateTextureFromSurface(state->renderer, textSurface);
+		SDL_Texture *textTexture = SDL_CreateTextureFromSurface(state->renderer, textSurface);
 
 		// Center text in button
 		SDL_Rect textRect;
 		textRect.w = textSurface->w;
 		textRect.h = textSurface->h;
-		textRect.x = BUTTON_X + (BUTTON_W - textRect.w) / 2;
-		textRect.y = BUTTON_Y + (BUTTON_H - textRect.h) / 2;
+		textRect.x = x + (w - textRect.w) / 2;
+		textRect.y = y + (h - textRect.h) / 2;
 
 		SDL_FreeSurface(textSurface);
-
-		SDL_RenderCopy(state->renderer, state->buttonText, NULL, &textRect);
+		SDL_RenderCopy(state->renderer, textTexture, NULL, &textRect);
+		SDL_DestroyTexture(textTexture);
 	}
+}
+
+void drawSidePanelButtons(GameState *state)
+{
+	// NEW GAME button - uses smaller font to fit text
+	drawSingleButton(state, BUTTON_X, NEWGAME_BTN_Y, BUTTON_W, BUTTON_H,
+	                 "NEW GAME", state->sidePanelHover == HOVER_NEWGAME, state->smallButtonFont);
+
+	// RESET button
+	drawSingleButton(state, BUTTON_X, RESET_BTN_Y, BUTTON_W, BUTTON_H,
+	                 "RESET", state->sidePanelHover == HOVER_RESET, state->buttonFont);
+
+	// EXIT button
+	drawSingleButton(state, BUTTON_X, EXIT_BTN_Y, BUTTON_W, BUTTON_H,
+	                 "EXIT", state->sidePanelHover == HOVER_EXIT, state->buttonFont);
+}
+
+void drawMainMenu(GameState *state)
+{
+	// Clear Screen
+	SDL_SetRenderDrawColor(state->renderer, 0xFF, 0xFF, 0xFF, 0xFF);
+	SDL_RenderClear(state->renderer);
+
+	// Draw grid panel as background
+	SDL_Rect gridDest = {0, 0, GRID_PANEL_W, GRID_PANEL_H};
+	SDL_RenderCopy(state->renderer, state->gridPanel, NULL, &gridDest);
+
+	// Draw clock panel
+	SDL_Rect clockDest = {GRID_PANEL_W, 0, CLOCK_PANEL_W, CLOCK_PANEL_H};
+	SDL_RenderCopy(state->renderer, state->clockPanel, NULL, &clockDest);
+
+	// Draw NEW GAME button centered
+	int btnY = (GRID_PANEL_H - MENU_BTN_H) / 2;
+	drawSingleButton(state, MENU_BTN_X, btnY, MENU_BTN_W, MENU_BTN_H,
+	                 "NEW GAME", state->menuHover == MENU_HOVER_NEWGAME, state->menuFont);
+
+	SDL_RenderPresent(state->renderer);
+}
+
+void drawDifficultyMenu(GameState *state)
+{
+	// Clear Screen
+	SDL_SetRenderDrawColor(state->renderer, 0xFF, 0xFF, 0xFF, 0xFF);
+	SDL_RenderClear(state->renderer);
+
+	// Draw grid panel as background
+	SDL_Rect gridDest = {0, 0, GRID_PANEL_W, GRID_PANEL_H};
+	SDL_RenderCopy(state->renderer, state->gridPanel, NULL, &gridDest);
+
+	// Draw clock panel
+	SDL_Rect clockDest = {GRID_PANEL_W, 0, CLOCK_PANEL_W, CLOCK_PANEL_H};
+	SDL_RenderCopy(state->renderer, state->clockPanel, NULL, &clockDest);
+
+	// Calculate button positions (centered, stacked vertically)
+	int startY = (GRID_PANEL_H - (4 * MENU_BTN_H + 3 * MENU_BTN_SPACING)) / 2;
+
+	// EASY button
+	drawSingleButton(state, MENU_BTN_X, startY, MENU_BTN_W, MENU_BTN_H,
+	                 "EASY", state->menuHover == MENU_HOVER_EASY, state->menuFont);
+
+	// MEDIUM button
+	drawSingleButton(state, MENU_BTN_X, startY + MENU_BTN_H + MENU_BTN_SPACING, MENU_BTN_W, MENU_BTN_H,
+	                 "MEDIUM", state->menuHover == MENU_HOVER_MEDIUM, state->menuFont);
+
+	// HARD button
+	drawSingleButton(state, MENU_BTN_X, startY + 2 * (MENU_BTN_H + MENU_BTN_SPACING), MENU_BTN_W, MENU_BTN_H,
+	                 "HARD", state->menuHover == MENU_HOVER_HARD, state->menuFont);
+
+	// EXTREME button
+	drawSingleButton(state, MENU_BTN_X, startY + 3 * (MENU_BTN_H + MENU_BTN_SPACING), MENU_BTN_W, MENU_BTN_H,
+	                 "EXTREME", state->menuHover == MENU_HOVER_EXTREME, state->menuFont);
+
+	SDL_RenderPresent(state->renderer);
+}
+
+void drawExtremePlusPrompt(GameState *state)
+{
+	// Draw semi-transparent overlay
+	SDL_SetRenderDrawBlendMode(state->renderer, SDL_BLENDMODE_BLEND);
+	SDL_SetRenderDrawColor(state->renderer, 0, 0, 0, 180);
+	SDL_Rect overlay = {0, 0, GRID_PANEL_W, GRID_PANEL_H};
+	SDL_RenderFillRect(state->renderer, &overlay);
+
+	// Draw popup box
+	SDL_Rect popup = {POPUP_X, POPUP_Y, POPUP_W, POPUP_H};
+	SDL_SetRenderDrawColor(state->renderer, 50, 50, 50, 255);
+	SDL_RenderFillRect(state->renderer, &popup);
+	SDL_SetRenderDrawColor(state->renderer, 150, 150, 150, 255);
+	SDL_RenderDrawRect(state->renderer, &popup);
+
+	// Draw title text
+	SDL_Color white = {255, 255, 255, 255};
+	SDL_Surface *titleSurface = TTF_RenderText_Blended(state->menuFont, "GET MORE EXTREME?", white);
+	if (titleSurface)
+	{
+		SDL_Texture *titleTexture = SDL_CreateTextureFromSurface(state->renderer, titleSurface);
+		SDL_Rect titleRect = {POPUP_X + (POPUP_W - titleSurface->w) / 2, POPUP_Y + 40, titleSurface->w, titleSurface->h};
+		SDL_FreeSurface(titleSurface);
+		SDL_RenderCopy(state->renderer, titleTexture, NULL, &titleRect);
+		SDL_DestroyTexture(titleTexture);
+	}
+
+	// Draw current time info
+	int nextTime = state->extremePlusTime;
+	if (nextTime > 20)
+		nextTime -= 5;
+	else
+		nextTime -= 2;
+
+	char timeInfo[64];
+	sprintf(timeInfo, "Next challenge: %d seconds", nextTime);
+	SDL_Surface *infoSurface = TTF_RenderText_Blended(state->buttonFont, timeInfo, white);
+	if (infoSurface)
+	{
+		SDL_Texture *infoTexture = SDL_CreateTextureFromSurface(state->renderer, infoSurface);
+		SDL_Rect infoRect = {POPUP_X + (POPUP_W - infoSurface->w) / 2, POPUP_Y + 100, infoSurface->w, infoSurface->h};
+		SDL_FreeSurface(infoSurface);
+		SDL_RenderCopy(state->renderer, infoTexture, NULL, &infoRect);
+		SDL_DestroyTexture(infoTexture);
+	}
+
+	// Draw YES/NO buttons
+	int btnW = 120;
+	int btnH = 50;
+	int spacing = 40;
+	int yesX = POPUP_X + (POPUP_W / 2) - btnW - (spacing / 2);
+	int noX = POPUP_X + (POPUP_W / 2) + (spacing / 2);
+	int btnY = POPUP_Y + POPUP_H - btnH - 30;
+
+	drawSingleButton(state, yesX, btnY, btnW, btnH, "YES", state->menuHover == MENU_HOVER_YES, state->buttonFont);
+	drawSingleButton(state, noX, btnY, btnW, btnH, "NO", state->menuHover == MENU_HOVER_NO, state->buttonFont);
+
+	SDL_RenderPresent(state->renderer);
+}
+
+void drawCongraturation(GameState *state)
+{
+	// Draw semi-transparent overlay
+	SDL_SetRenderDrawBlendMode(state->renderer, SDL_BLENDMODE_BLEND);
+	SDL_SetRenderDrawColor(state->renderer, 0, 0, 0, 200);
+	SDL_Rect overlay = {0, 0, GRID_PANEL_W, GRID_PANEL_H};
+	SDL_RenderFillRect(state->renderer, &overlay);
+
+	// Draw popup box
+	SDL_Rect popup = {POPUP_X, POPUP_Y, POPUP_W, POPUP_H};
+	SDL_SetRenderDrawColor(state->renderer, 30, 30, 30, 255);
+	SDL_RenderFillRect(state->renderer, &popup);
+	SDL_SetRenderDrawColor(state->renderer, 200, 150, 50, 255);  // Gold border
+	SDL_RenderDrawRect(state->renderer, &popup);
+
+	SDL_Color gold = {255, 215, 0, 255};
+
+	// "CONGRATURATION." - centered
+	SDL_Surface *line1Surface = TTF_RenderText_Blended(state->menuFont, "CONGRATURATION.", gold);
+	if (line1Surface)
+	{
+		SDL_Texture *line1Texture = SDL_CreateTextureFromSurface(state->renderer, line1Surface);
+		SDL_Rect line1Rect = {POPUP_X + (POPUP_W - line1Surface->w) / 2, POPUP_Y + 50, line1Surface->w, line1Surface->h};
+		SDL_FreeSurface(line1Surface);
+		SDL_RenderCopy(state->renderer, line1Texture, NULL, &line1Rect);
+		SDL_DestroyTexture(line1Texture);
+	}
+
+	// "THIS STORY IS HAPPY END." - centered
+	SDL_Surface *line2Surface = TTF_RenderText_Blended(state->buttonFont, "THIS STORY IS HAPPY END.", gold);
+	if (line2Surface)
+	{
+		SDL_Texture *line2Texture = SDL_CreateTextureFromSurface(state->renderer, line2Surface);
+		SDL_Rect line2Rect = {POPUP_X + (POPUP_W - line2Surface->w) / 2, POPUP_Y + 110, line2Surface->w, line2Surface->h};
+		SDL_FreeSurface(line2Surface);
+		SDL_RenderCopy(state->renderer, line2Texture, NULL, &line2Rect);
+		SDL_DestroyTexture(line2Texture);
+	}
+
+	// "THANK YOU." - centered
+	SDL_Surface *line3Surface = TTF_RenderText_Blended(state->buttonFont, "THANK YOU.", gold);
+	if (line3Surface)
+	{
+		SDL_Texture *line3Texture = SDL_CreateTextureFromSurface(state->renderer, line3Surface);
+		SDL_Rect line3Rect = {POPUP_X + (POPUP_W - line3Surface->w) / 2, POPUP_Y + 160, line3Surface->w, line3Surface->h};
+		SDL_FreeSurface(line3Surface);
+		SDL_RenderCopy(state->renderer, line3Texture, NULL, &line3Rect);
+		SDL_DestroyTexture(line3Texture);
+	}
+
+	// Continue button
+	int btnW = 150;
+	int btnH = 50;
+	int btnX = POPUP_X + (POPUP_W - btnW) / 2;
+	int btnY = POPUP_Y + POPUP_H - btnH - 20;
+
+	drawSingleButton(state, btnX, btnY, btnW, btnH, "CONTINUE", state->menuHover == MENU_HOVER_CONTINUE, state->buttonFont);
+
+	SDL_RenderPresent(state->renderer);
+}
+
+void drawMenuButton(GameState *state, int x, int y, int w, int h, const char *text, bool hovered)
+{
+	drawSingleButton(state, x, y, w, h, text, hovered, state->menuFont);
 }
