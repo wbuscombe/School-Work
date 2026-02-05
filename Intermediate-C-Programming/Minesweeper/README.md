@@ -1,15 +1,21 @@
 # Extreme Minesweeper
 
-A Minesweeper clone built with SDL2 featuring a 60-second time limit, background music, and explosion animations.
+A Minesweeper clone built with SDL2 featuring multiple difficulty levels, time pressure gameplay, and an EXTREME+ challenge mode.
 
 ## Features
 
 - **Classic Minesweeper gameplay** - Click tiles to reveal numbers or mines
-- **Time pressure** - 60-second countdown timer with color-changing display (green to red)
+- **Four difficulty levels**:
+  - Easy (120 seconds)
+  - Medium (90 seconds)
+  - Hard (60 seconds)
+  - Extreme (30 seconds)
+- **EXTREME+ Mode** - Beat Extreme and keep pushing your limits with decreasing time
+- **Time pressure** - Countdown timer with color-changing display (green to red)
 - **Audio** - Background music during gameplay, victory/defeat sound effects, explosion sounds
 - **Visual effects** - Animated explosion when hitting a mine
 - **Auto-reveal** - Clicking a zero tile automatically reveals adjacent safe tiles
-- **Play Again button** - Restart without closing the application
+- **In-game menu** - NEW GAME, RESET, and EXIT buttons always available
 
 ## Screenshots
 
@@ -24,18 +30,32 @@ A Minesweeper clone built with SDL2 featuring a 60-second time limit, background
 
 ### Pre-built Binaries
 
-**Recommended for most users:**
+Go to the [Releases page](../../releases) to download:
 
-1. Go to the [Releases page](../../releases)
-2. Download the ZIP for your operating system:
-   - `minesweeper-windows.zip` - Windows (includes all DLLs, no installation needed)
-   - `minesweeper-macos.zip` - macOS (requires SDL2)
-   - `minesweeper-linux.zip` - Linux (requires SDL2)
-3. Extract and run
+#### Windows
+- **`Minesweeper-Setup.exe`** - Installer (recommended)
+  - Creates Start Menu and Desktop shortcuts
+  - Adds uninstaller to Control Panel
+- **`minesweeper-windows.zip`** - Portable version
+  - Extract anywhere and run `Play.bat`
+  - No installation required
 
-**Windows users:** Double-click `Play.bat` or `minesweeper.exe`
+#### macOS
+- **`minesweeper-macos-app.zip`** - App Bundle
+  - Extract and drag `Extreme Minesweeper.app` to Applications
+  - Requires SDL2: `brew install sdl2 sdl2_image sdl2_ttf sdl2_mixer`
+- **`minesweeper-macos.zip`** - Standalone folder
+  - For users who prefer running from terminal
 
-**macOS/Linux users:** You'll need SDL2 runtime libraries installed (see Building section for installation commands).
+#### Linux
+- **`minesweeper-linux.tar.gz`** - Tarball with install script
+  - Extract and run `./install.sh` for system installation
+  - Or run `./minesweeper.sh` directly
+- **`minesweeper-linux.zip`** - ZIP archive
+- Requires SDL2:
+  - Ubuntu/Debian: `sudo apt install libsdl2-2.0-0 libsdl2-image-2.0-0 libsdl2-ttf-2.0-0 libsdl2-mixer-2.0-0`
+  - Fedora: `sudo dnf install SDL2 SDL2_image SDL2_ttf SDL2_mixer`
+  - Arch: `sudo pacman -S sdl2 sdl2_image sdl2_ttf sdl2_mixer`
 
 ### Development Builds
 
@@ -46,7 +66,7 @@ The latest development builds are available from [GitHub Actions](../../actions/
 ### Prerequisites
 
 - C compiler (gcc or clang)
-- SDL2, SDL2_image, SDL2_ttf, SDL2_mixer
+- SDL2, SDL2_image, SDL2_ttf, SDL2_mixer development libraries
 
 ### Linux (Ubuntu/Debian)
 
@@ -72,6 +92,34 @@ make
 ./minesweeper.exe
 ```
 
+## Controls
+
+- **Left click** - Reveal a tile
+- **NEW GAME** - Return to difficulty selection
+- **RESET** - Restart current game with same difficulty
+- **EXIT** - Close the game
+- **ESC** - Close the game
+
+## EXTREME+ Mode
+
+After beating EXTREME mode (30 seconds), you'll be challenged to "GET MORE EXTREME?"
+
+- Accepting reduces your time by 5 seconds (down to 20 seconds)
+- Below 20 seconds, time reduces by 2 seconds each win
+- RESET keeps your current EXTREME+ time
+- Keep going until you beat the game with just 2 seconds!
+- Victory at 2 seconds reveals the ultimate ending: **"CONGRATURATION."**
+
+## Configuration
+
+Grid size and mine count can be adjusted in `main.c`:
+
+```c
+#define GRID_ROWS 10
+#define GRID_COLS 10
+#define MINES ((int) ((5.0 / 32.0) * ((GRID_ROWS * GRID_COLS) / 1.0)))
+```
+
 ## Game Assets
 
 | File | Description |
@@ -88,30 +136,26 @@ make
 | `defeat.wav` | Lose sound effect |
 | `explosion.wav` | Mine explosion sound |
 
-## Controls
+## Version History
 
-- **Left click** - Reveal a tile
-- **Play Again button** - Restart the game (appears after game over)
-- **ESC** - Exit after game over
+### v2.0.0
+- Added main menu and difficulty selection
+- Added four difficulty levels (Easy, Medium, Hard, Extreme)
+- Added EXTREME+ progressive challenge mode
+- Added NEW GAME, RESET, and EXIT buttons
+- Added "CONGRATURATION" ending (Ghosts 'n Goblins reference)
+- Windows installer with Start Menu shortcuts
+- macOS App Bundle support
+- Linux install script
 
-## Configuration
+### v1.1.0
+- Fixed app freeze on game over
+- Added Play Again button
+- Fixed memory leaks
+- Cross-platform CI/CD builds
 
-Grid size and mine count can be adjusted in `main.c`:
-
-```c
-#define GRID_ROWS 10
-#define GRID_COLS 10
-#define MINES ((int) ((5.0 / 32.0) * ((GRID_ROWS * GRID_COLS) / 1.0)))
-#define MAX_TIME 60
-```
-
-## Recent Improvements
-
-- **Fixed app freeze on game over** - The game no longer becomes unresponsive during end-game animations
-- **Added Play Again button** - Easily restart without closing and reopening the app
-- **Fixed memory leaks** - Textures are now properly released during gameplay
-- **Improved cleanup** - All SDL resources are properly freed on exit
-- **Cross-platform builds** - GitHub Actions now builds and packages for Windows, macOS, and Linux
+### v1.0.0
+- Original release for Intermediate C Programming course
 
 ## Original Assignment
 
