@@ -19,7 +19,7 @@ Use the IMDB files from ftp://ftp.fu-berlin.de/pub/misc/movies/database/ to buil
 
 4. MPAA_Rating_Database/src/main.java parses the data from mpaa.txt and creates the database mpaa_ratings.db
 
-5. main.c when compiled with makefile into project06_01 is a client with which the queries can be executed as per the assignment
+5. main.c when compiled with makefile into imdb-query is a client with which the queries can be executed as per the assignment
 
 ************************************************************************************************************************************************************
 Sample run:
@@ -27,9 +27,9 @@ Sample run:
 
     $ make
         
-        gcc main.c -Wall -std=c99 -I/opt/local/include -lm -lsqlite3 -L/opt/local/lib  -o project06_01
+        gcc main.c -Wall -std=c99 -I/opt/local/include -lm -lsqlite3 -L/opt/local/lib  -o imdb-query
         
-    $ ./project06_01 
+    $ ./imdb-query 
     
         Enter ? for command menu
         > ?

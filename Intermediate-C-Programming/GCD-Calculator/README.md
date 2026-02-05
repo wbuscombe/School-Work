@@ -8,9 +8,9 @@ Sample run:
 
     $ make
 
-        gcc main.c functions.c -Wall -std=c99 -lm -o project01_03
+        gcc main.c functions.c -Wall -std=c99 -lm -o gcd
 
-    $ ./project01_03 
+    $ ./gcd 
     
         Enter two integers: 12 28
         Greatest common divisor: 4

@@ -8,9 +8,9 @@ Sample run:
 
     $ make
         
-        gcc main.c functions.c -Wall -std=c99 -lm -o project01_02
+        gcc main.c functions.c -Wall -std=c99 -lm -o magic-square
 
-    $ ./project01_02 
+    $ ./magic-square 
 
         16 3 2 13 5 10 11 8 9 6 7 12 4 15 14 1
 

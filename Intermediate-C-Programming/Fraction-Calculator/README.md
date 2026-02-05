@@ -8,9 +8,9 @@ Sample run:
 
     $ make
     
-        gcc main.c functions.c -Wall -std=c99 -lm -o project01_05
+        gcc main.c functions.c -Wall -std=c99 -lm -o fraction-calc
         
-    $ ./project01_05
+    $ ./fraction-calc
     
         ******************************    Calculator    ******************************
         *                                                                            *
@@ -24,7 +24,7 @@ Sample run:
 
         5/8 + 7/11 = 111/88
         
-    $ ./project01_05 
+    $ ./fraction-calc 
         
         ******************************    Calculator    ******************************
         *                                                                            *
@@ -38,7 +38,7 @@ Sample run:
 
         7/10 - 1/2 = 1/5
         
-    $ ./project01_05 
+    $ ./fraction-calc 
     
         ******************************    Calculator    ******************************
         *                                                                            *
@@ -52,7 +52,7 @@ Sample run:
 
         1/2 * 5/6 = 5/12
         
-    $ ./project01_05 
+    $ ./fraction-calc 
     
         ******************************    Calculator    ******************************
         *                                                                            *

@@ -18,9 +18,9 @@ Sample run:
 
     $ make
 
-        gcc main.c functions.c -Wall -std=c99 -lm -o project01_04
+        gcc main.c functions.c -Wall -std=c99 -lm -o eulers-number
 
-    $ ./project01_04 
+    $ ./eulers-number 
 
         Enter a value for n: 15
         Enter a value for E (epsilon): .1

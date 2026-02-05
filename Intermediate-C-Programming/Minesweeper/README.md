@@ -31,7 +31,7 @@ A Minesweeper clone built with SDL2 featuring a 60-second time limit, background
 ```bash
 sudo apt-get install libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev libsdl2-mixer-dev
 make
-./project03_01
+./minesweeper
 ```
 
 ### macOS (Homebrew)
@@ -39,7 +39,7 @@ make
 ```bash
 brew install sdl2 sdl2_image sdl2_ttf sdl2_mixer
 make
-./project03_01
+./minesweeper
 ```
 
 ### Windows (MSYS2)
@@ -47,7 +47,7 @@ make
 ```bash
 pacman -S mingw-w64-x86_64-SDL2 mingw-w64-x86_64-SDL2_image mingw-w64-x86_64-SDL2_ttf mingw-w64-x86_64-SDL2_mixer
 make
-./project03_01.exe
+./minesweeper.exe
 ```
 
 ### Pre-built Binaries

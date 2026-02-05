@@ -10,9 +10,9 @@ Sample run:
 
     $ make
 
-        gcc main.c functions.c -Wall -std=c99 -lm -o project01_01
+        gcc main.c functions.c -Wall -std=c99 -lm -o loan-balance
 
-    $ ./project01_01 
+    $ ./loan-balance 
     
         Enter amount of loan: 20000.00
         Enter interest rate: 6.0
