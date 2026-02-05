@@ -42,6 +42,12 @@
 #define CLOCK_GUTTER_X ((CLOCK_PANEL_W * (1.0 / 3.0)) / 2.0)
 #define CLOCK_GUTTER_Y ((CLOCK_PANEL_H * (7.0 / 9.0)) / 2.0)
 
+// Play Again Button Dimensions
+#define BUTTON_W (CLOCK_W)
+#define BUTTON_H (CLOCK_H * 0.4)
+#define BUTTON_X (GRID_PANEL_W + CLOCK_GUTTER_X)
+#define BUTTON_Y (CLOCK_GUTTER_Y + CLOCK_H + 40)
+
 typedef struct GameState
 {
 	SDL_Window *window;
@@ -65,6 +71,7 @@ typedef struct GameState
 	Mix_Chunk *explosionSound;	// Explosion Sound
 
 	SDL_Texture *explosionAnimation;	// Explosion Animation
+	SDL_Texture *buttonText;			// Play Again Button Text
 
 	int adjNum[GRID_ROWS][GRID_COLS];		// Adjacent Mines
 	bool mines[GRID_ROWS][GRID_COLS];		// Mines
@@ -80,30 +87,39 @@ typedef struct GameState
 	int numRevealed;		// Number of Tiles Revealed
 	int mineX;				// X Coordinate of Mine Found
 	int mineY;				// Y Coordinate of Mine Found
+
+	// FIX: Non-blocking end-game animation state.
+	// Previously, SDL_Delay() calls blocked the main thread for 15+ seconds,
+	// causing the app to become unresponsive (spinning pinwheel on macOS).
+	// Now we track animation phases and timing to allow event processing.
+	int endGamePhase;				// 0=playing, 1=defeat sound, 2=explosion, 3=done
+	unsigned int endGameStartTime;	// Timestamp when end-game phase started
+	bool explosionSoundPlayed;		// Has explosion sound been played
+	bool buttonHovered;				// Is mouse hovering over Play Again button
 } GameState;
 
 void cleanupAndClose(int exitCode, GameState *state);
 
 bool setupSDL(char *title, int width, int height, GameState *state);
 
-bool shouldClose();
-
 void gameLoop(GameState *state);
 
 void initGrid(GameState *state);
 
-void updateRevealed(GameState *state);
+void resetGame(GameState *state);
 
-bool handleEvents(GameState *state);
+void updateRevealed(GameState *state);
 
 void clearLocalZeroes(GameState *state, int i, int j);
 
 void draw(GameState *state, bool explosionFlag);
 
+void drawButton(GameState *state);
+
 int main(int argc, char *argv[])
 {
 	// Initialize GameState
-	GameState state = {.window=NULL, .renderer=NULL, .buffer=NULL, .gridPanel=NULL, .clockPanel=NULL, .tile=NULL, .mine=NULL, .clockText=NULL, .clockFont=NULL, .tileFont=NULL, .gameLoopMusic=NULL, .victorySound=NULL, .defeatSound=NULL, .explosionSound=NULL, .explosionAnimation=NULL};
+	GameState state = {.window=NULL, .renderer=NULL, .buffer=NULL, .gridPanel=NULL, .clockPanel=NULL, .tile=NULL, .mine=NULL, .clockText=NULL, .clockFont=NULL, .tileFont=NULL, .gameLoopMusic=NULL, .victorySound=NULL, .defeatSound=NULL, .explosionSound=NULL, .explosionAnimation=NULL, .buttonText=NULL};
 	memset(state.tileText, 0, sizeof(state.tileText[0][0]) * GRID_ROWS * GRID_COLS);
 	memset(state.adjNum, 0, sizeof(state.adjNum[0][0]) * GRID_ROWS * GRID_COLS);
 	memset(state.mines, false, sizeof(state.mines[0][0]) * GRID_ROWS * GRID_COLS);
@@ -118,15 +134,19 @@ int main(int argc, char *argv[])
 	state.numRevealed = 0;
 	state.mineX = 0;
 	state.mineY = 0;
+	state.endGamePhase = 0;
+	state.endGameStartTime = 0;
+	state.explosionSoundPlayed = false;
+	state.buttonHovered = false;
 
 	if (setupSDL("Extreme Minesweeper - by Will Buscombe", WINDOW_W, WINDOW_H, &state))
 	{
+		// FIX: Replaced blocking post-game loop with unified main loop.
+		// Previously, gameLoop() blocked for 15+ seconds on defeat, then
+		// control passed to a separate while(!shouldClose()) loop.
+		// Now gameLoop() handles everything including end-game animations
+		// and Play Again button, keeping the app responsive throughout.
 		gameLoop(&state);
-
-		while(!shouldClose())
-		{
-			draw(&state, false);
-		}
 	}
 
 	cleanupAndClose(EXIT_SUCCESS, &state);
@@ -154,6 +174,7 @@ void cleanupAndClose(int exitCode, GameState *state)
 	if (state->defeatSound)		Mix_FreeChunk(state->defeatSound);
 	if (state->explosionSound)	Mix_FreeChunk(state->explosionSound);
 	if (state->explosionAnimation)	SDL_DestroyTexture(state->explosionAnimation);
+	if (state->buttonText)	SDL_DestroyTexture(state->buttonText);
 	// FIX: Added missing cleanup calls for SDL_image and SDL_mixer audio device.
 	// Previously, IMG_Init() at line 331 and Mix_OpenAudio() at line 177 were called
 	// but their corresponding cleanup functions were never invoked, leaking resources.
@@ -353,37 +374,123 @@ bool setupSDL(char *title, int width, int height, GameState *state)
     return true;
 }
 
-bool shouldClose()
-{
-    SDL_Event event;
-
-    while(SDL_PollEvent(&event))
-    {
-        if(event.type == SDL_KEYDOWN || event.type == SDL_QUIT)
-            return true;
-    }
-    return false;
-}
-
 void gameLoop(GameState *state)
 {
 	unsigned int currentTime = 0;
-	unsigned int animationStart, animationCurrent;
+	bool running = true;
 
 	initGrid(state);
 
-	// Main Game Loop
-	while (handleEvents(state) && !(state->gameOver) && !(shouldClose()))
+	// FIX: Unified non-blocking main loop.
+	// Previously had blocking SDL_Delay() calls that froze the app for 15+ seconds.
+	// Now uses state machine (endGamePhase) to handle end-game animations
+	// while keeping the event loop responsive. Phases:
+	// 0 = active gameplay
+	// 1 = defeat sound playing (8 second wait)
+	// 2 = explosion animation (350ms)
+	// 3 = post-explosion wait (7 seconds)
+	// 4 = game over, showing Play Again button
+	while (running)
 	{
-		// Check and Update Time
+		SDL_Event event;
 
-		// If Time has Expired
-		if (state->time == 0)
-			state->gameOver = true;
-
-		if (state->gameStarted)
+		// Handle all pending events
+		while (SDL_PollEvent(&event))
 		{
-			if (!(state->gameOver))
+			if (event.type == SDL_QUIT)
+			{
+				running = false;
+				break;
+			}
+
+			// Handle mouse motion for button hover effect
+			if (event.type == SDL_MOUSEMOTION && state->endGamePhase == 4)
+			{
+				int mx = event.motion.x;
+				int my = event.motion.y;
+				state->buttonHovered = (mx >= BUTTON_X && mx <= BUTTON_X + BUTTON_W &&
+				                        my >= BUTTON_Y && my <= BUTTON_Y + BUTTON_H);
+			}
+
+			// Handle mouse clicks
+			if (event.type == SDL_MOUSEBUTTONDOWN)
+			{
+				int clickX = event.button.x;
+				int clickY = event.button.y;
+
+				// Check for Play Again button click when game is over
+				if (state->endGamePhase == 4)
+				{
+					if (clickX >= BUTTON_X && clickX <= BUTTON_X + BUTTON_W &&
+					    clickY >= BUTTON_Y && clickY <= BUTTON_Y + BUTTON_H)
+					{
+						resetGame(state);
+						continue;
+					}
+				}
+
+				// Handle tile clicks during active gameplay
+				if (state->endGamePhase == 0 && !state->gameOver)
+				{
+					// If Click Outside of Tile Grid
+					if ((clickX < GRID_GUTTER_X) || (clickX > (GRID_GUTTER_X + GRID_W)) ||
+					    (clickY < GRID_GUTTER_Y) || (clickY > (GRID_GUTTER_Y + GRID_H)))
+						continue;
+
+					// If First Move of Game Start Timer
+					if (!(state->gameStarted))
+					{
+						state->gameStarted = true;
+						state->lastTime = SDL_GetTicks();
+						Mix_PlayMusic(state->gameLoopMusic, -1);
+					}
+
+					int tileX = (clickX - GRID_GUTTER_X) / TILE_W;
+					int tileY = (clickY - GRID_GUTTER_Y) / TILE_H;
+
+					// Reveal Clicked Tile
+					state->revealed[tileY][tileX] = true;
+
+					// If Clicked Tile Reveals a Mine Game is Over
+					if (state->mines[tileY][tileX])
+					{
+						state->gameOver = true;
+						state->defeat = true;
+						state->mineFound = true;
+						state->mineX = tileX;
+						state->mineY = tileY;
+					}
+					else if (state->adjNum[tileY][tileX] == 0)
+					{
+						clearLocalZeroes(state, tileY, tileX);
+					}
+				}
+			}
+
+			// Allow ESC or any key to close during end-game display
+			if (event.type == SDL_KEYDOWN && state->endGamePhase == 4)
+			{
+				if (event.key.keysym.sym == SDLK_ESCAPE)
+				{
+					running = false;
+					break;
+				}
+			}
+		}
+
+		if (!running) break;
+
+		// Game logic for active gameplay (phase 0)
+		if (state->endGamePhase == 0 && !state->gameOver)
+		{
+			// Timer logic
+			if (state->time == 0)
+			{
+				state->gameOver = true;
+				state->defeat = true;
+			}
+
+			if (state->gameStarted && !state->gameOver)
 			{
 				currentTime = SDL_GetTicks();
 				if (currentTime >= (state->lastTime + 1000))
@@ -392,66 +499,79 @@ void gameLoop(GameState *state)
 					state->lastTime = currentTime;
 				}
 			}
-		}
 
-		// Draw Current Game State
-		draw(state, false);
+			// Check Number of Revealed Tiles
+			updateRevealed(state);
 
-		// Check Number of Revealed Tiles
-		updateRevealed(state);
-
-		// Check if Victorious
-		if (((GRID_ROWS * GRID_COLS) - state->numRevealed) == MINES)
-		{
-			state->gameOver = true;
-			state->victory = true;
-		}
-	}
-
-	// Draw for Revealed Mine
-	draw(state, false);
-
-	// Stop Game Loop Music
-	Mix_HaltMusic();
-
-	// Pause
-
-	// Victorious
-	if (state->victory)
-	{
-		// Play Victory Sound
-		Mix_PlayChannel(-1, state->victorySound, 0);
-	}
-	// Defeat
-	else
-	{
-		// Play Defeat Sound
-		Mix_PlayChannel(-1, state->defeatSound, 0);
-		
-		// Defeat and Mine Found
-		if(state->mineFound)
-		{
-			SDL_Delay(8000);
-
-			// Hide Mine
-			//state->mines[state->mineY][state->mineX] = false;
-
-			// Animate Explosion in Position of Mine and Play Explosion Sound
-			Mix_PlayChannel(-1, state->explosionSound, 0);
-
-			animationStart = SDL_GetTicks();
-
-			while (animationCurrent <= (animationStart + 350))
+			// Check if Victorious
+			if (((GRID_ROWS * GRID_COLS) - state->numRevealed) == MINES)
 			{
-				draw(state, true);
-
-				animationCurrent = SDL_GetTicks();
-
-				SDL_Delay(100);
+				state->gameOver = true;
+				state->victory = true;
 			}
-
-			SDL_Delay(7000);
 		}
+
+		// Handle transition to end-game phases
+		if (state->gameOver && state->endGamePhase == 0)
+		{
+			Mix_HaltMusic();
+
+			if (state->victory)
+			{
+				Mix_PlayChannel(-1, state->victorySound, 0);
+				state->endGamePhase = 4;  // Skip to final phase for victory
+			}
+			else
+			{
+				Mix_PlayChannel(-1, state->defeatSound, 0);
+				state->endGamePhase = 1;
+				state->endGameStartTime = SDL_GetTicks();
+			}
+		}
+
+		// Phase 1: Wait 8 seconds after defeat sound
+		if (state->endGamePhase == 1)
+		{
+			if (SDL_GetTicks() >= state->endGameStartTime + 8000)
+			{
+				if (state->mineFound)
+				{
+					Mix_PlayChannel(-1, state->explosionSound, 0);
+					state->endGamePhase = 2;
+					state->endGameStartTime = SDL_GetTicks();
+				}
+				else
+				{
+					state->endGamePhase = 4;  // No mine found, skip explosion
+				}
+			}
+		}
+
+		// Phase 2: Explosion animation (350ms)
+		if (state->endGamePhase == 2)
+		{
+			if (SDL_GetTicks() >= state->endGameStartTime + 350)
+			{
+				state->endGamePhase = 3;
+				state->endGameStartTime = SDL_GetTicks();
+			}
+		}
+
+		// Phase 3: Wait 7 seconds after explosion
+		if (state->endGamePhase == 3)
+		{
+			if (SDL_GetTicks() >= state->endGameStartTime + 7000)
+			{
+				state->endGamePhase = 4;
+			}
+		}
+
+		// Draw current state
+		bool showExplosion = (state->endGamePhase == 2);
+		draw(state, showExplosion);
+
+		// Small delay to prevent CPU spinning (VSync should handle this but just in case)
+		SDL_Delay(1);
 	}
 
 	return;
@@ -510,6 +630,48 @@ void initGrid(GameState *state)
 	state->time = MAX_TIME;
 }
 
+void resetGame(GameState *state)
+{
+	// Clear tile textures to prevent memory leak on reset
+	for (int i = 0; i < GRID_ROWS; ++i)
+	{
+		for (int j = 0; j < GRID_COLS; ++j)
+		{
+			if (state->tileText[i][j])
+			{
+				SDL_DestroyTexture(state->tileText[i][j]);
+				state->tileText[i][j] = NULL;
+			}
+		}
+	}
+
+	// Reset grid state
+	memset(state->adjNum, 0, sizeof(state->adjNum[0][0]) * GRID_ROWS * GRID_COLS);
+	memset(state->mines, false, sizeof(state->mines[0][0]) * GRID_ROWS * GRID_COLS);
+	memset(state->revealed, false, sizeof(state->revealed[0][0]) * GRID_ROWS * GRID_COLS);
+
+	// Reset game flags
+	state->gameStarted = false;
+	state->gameOver = false;
+	state->victory = false;
+	state->defeat = false;
+	state->mineFound = false;
+	state->time = MAX_TIME;
+	state->lastTime = 0;
+	state->numRevealed = 0;
+	state->mineX = 0;
+	state->mineY = 0;
+
+	// Reset end-game animation state
+	state->endGamePhase = 0;
+	state->endGameStartTime = 0;
+	state->explosionSoundPlayed = false;
+	state->buttonHovered = false;
+
+	// Re-initialize the grid with new mine positions
+	initGrid(state);
+}
+
 void updateRevealed(GameState *state)
 {
 	int temp = 0;
@@ -527,62 +689,8 @@ void updateRevealed(GameState *state)
 	state->numRevealed = temp;
 }
 
-bool handleEvents(GameState *state)
-{
-	SDL_Event event;
-
-	while (SDL_PollEvent(&event))
-	{
-		// Check if Game is Over
-		if (state->gameOver)
-			return false;
-
-		switch (event.type)
-		{
-			case SDL_QUIT:
-				return false;
-			case SDL_MOUSEBUTTONDOWN:
-			{
-				// If Click Outside of Tile Grid
-				if ((event.button.x < GRID_GUTTER_X) || (event.button.x > (GRID_GUTTER_X + GRID_W)) ||
-				 (event.button.y < GRID_GUTTER_Y) || (event.button.y > (GRID_GUTTER_Y + GRID_H)))
-					continue;
-
-				// If First Move of Game Start Timer
-				if (!(state->gameStarted))
-				{
-					state->gameStarted = true;
-					state->lastTime = SDL_GetTicks();
-					// Start Game Loop Audio
-					Mix_PlayMusic(state->gameLoopMusic, -1);
-				}
-
-				int clickX = (event.button.x - GRID_GUTTER_X) / TILE_W;
-				int clickY = (event.button.y - GRID_GUTTER_Y) / TILE_H;
-
-				// Revealed Clicked Tile
-				state->revealed[clickY][clickX] = true;
-
-				// If Clicked Tile Reveals a Mine Game is Over and Player has Lost
-				if (state->mines[clickY][clickX])
-				{
-					// Game is Over and Mine is Found
-					state->gameOver = true;
-					state->defeat = true;
-					state->mineFound = true;
-
-					// Coordiantes of Found Mine
-					state->mineX = clickX;
-					state->mineY = clickY;
-				}
-				else
-					if (state->adjNum[clickY][clickX] == 0)
-						clearLocalZeroes(state, clickY, clickX);
-			}
-		}
-	}
-	return true;
-}
+// FIX: Removed handleEvents() function - logic now integrated into gameLoop()
+// to support non-blocking end-game animations and Play Again button.
 
 void clearLocalZeroes(GameState *state, int i, int j)
 {
@@ -815,6 +923,66 @@ void draw(GameState *state, bool explosionFlag)
 		SDL_RenderCopyEx(state->renderer, state->explosionAnimation, &explosionSource, &explosionDest, 0, NULL, SDL_FLIP_NONE);
 	}
 
+	// Draw Play Again button when game is over and end-game animation is complete
+	if (state->endGamePhase == 4)
+	{
+		drawButton(state);
+	}
+
 	// Draw to the screen
 	SDL_RenderPresent(state->renderer);
+}
+
+void drawButton(GameState *state)
+{
+	// Button background - matches the dark panel aesthetic
+	SDL_Rect buttonRect;
+	buttonRect.x = BUTTON_X;
+	buttonRect.y = BUTTON_Y;
+	buttonRect.w = BUTTON_W;
+	buttonRect.h = BUTTON_H;
+
+	// Draw button with hover effect
+	if (state->buttonHovered)
+	{
+		// Lighter shade when hovered
+		SDL_SetRenderDrawColor(state->renderer, 80, 80, 80, 0xFF);
+	}
+	else
+	{
+		// Dark background matching clock box
+		SDL_SetRenderDrawColor(state->renderer, 40, 40, 40, 0xFF);
+	}
+	SDL_RenderFillRect(state->renderer, &buttonRect);
+
+	// Draw border
+	SDL_SetRenderDrawColor(state->renderer, 100, 100, 100, 0xFF);
+	SDL_RenderDrawRect(state->renderer, &buttonRect);
+
+	// Render button text
+	SDL_Color textColor = {200, 200, 200, 0xFF};
+	if (state->buttonHovered)
+	{
+		textColor.r = 255;
+		textColor.g = 255;
+		textColor.b = 255;
+	}
+
+	SDL_Surface *textSurface = TTF_RenderText_Blended(state->tileFont, "Play Again", textColor);
+	if (textSurface)
+	{
+		if (state->buttonText) SDL_DestroyTexture(state->buttonText);
+		state->buttonText = SDL_CreateTextureFromSurface(state->renderer, textSurface);
+
+		// Center text in button
+		SDL_Rect textRect;
+		textRect.w = textSurface->w;
+		textRect.h = textSurface->h;
+		textRect.x = BUTTON_X + (BUTTON_W - textRect.w) / 2;
+		textRect.y = BUTTON_Y + (BUTTON_H - textRect.h) / 2;
+
+		SDL_FreeSurface(textSurface);
+
+		SDL_RenderCopy(state->renderer, state->buttonText, NULL, &textRect);
+	}
 }
