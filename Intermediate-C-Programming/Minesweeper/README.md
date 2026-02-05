@@ -9,6 +9,7 @@ A Minesweeper clone built with SDL2 featuring a 60-second time limit, background
 - **Audio** - Background music during gameplay, victory/defeat sound effects, explosion sounds
 - **Visual effects** - Animated explosion when hitting a mine
 - **Auto-reveal** - Clicking a zero tile automatically reveals adjacent safe tiles
+- **Play Again button** - Restart without closing the application
 
 ## Screenshots
 
@@ -19,7 +20,28 @@ A Minesweeper clone built with SDL2 featuring a 60-second time limit, background
 ![Explosion](cap3.PNG)
 ![Game Over](cap5.PNG)
 
-## Building
+## Downloads
+
+### Pre-built Binaries
+
+**Recommended for most users:**
+
+1. Go to the [Releases page](../../releases)
+2. Download the ZIP for your operating system:
+   - `minesweeper-windows.zip` - Windows (includes all DLLs, no installation needed)
+   - `minesweeper-macos.zip` - macOS (requires SDL2)
+   - `minesweeper-linux.zip` - Linux (requires SDL2)
+3. Extract and run
+
+**Windows users:** Double-click `Play.bat` or `minesweeper.exe`
+
+**macOS/Linux users:** You'll need SDL2 runtime libraries installed (see Building section for installation commands).
+
+### Development Builds
+
+The latest development builds are available from [GitHub Actions](../../actions/workflows/build-minesweeper.yml).
+
+## Building from Source
 
 ### Prerequisites
 
@@ -50,10 +72,6 @@ make
 ./minesweeper.exe
 ```
 
-### Pre-built Binaries
-
-Pre-built executables for Linux, macOS, and Windows are available from [GitHub Actions](../../actions/workflows/build-minesweeper.yml). Download the artifact for your platform from the latest successful build.
-
 ## Game Assets
 
 | File | Description |
@@ -73,7 +91,8 @@ Pre-built executables for Linux, macOS, and Windows are available from [GitHub A
 ## Controls
 
 - **Left click** - Reveal a tile
-- **Any key** - Exit after game over
+- **Play Again button** - Restart the game (appears after game over)
+- **ESC** - Exit after game over
 
 ## Configuration
 
@@ -85,6 +104,14 @@ Grid size and mine count can be adjusted in `main.c`:
 #define MINES ((int) ((5.0 / 32.0) * ((GRID_ROWS * GRID_COLS) / 1.0)))
 #define MAX_TIME 60
 ```
+
+## Recent Improvements
+
+- **Fixed app freeze on game over** - The game no longer becomes unresponsive during end-game animations
+- **Added Play Again button** - Easily restart without closing and reopening the app
+- **Fixed memory leaks** - Textures are now properly released during gameplay
+- **Improved cleanup** - All SDL resources are properly freed on exit
+- **Cross-platform builds** - GitHub Actions now builds and packages for Windows, macOS, and Linux
 
 ## Original Assignment
 
