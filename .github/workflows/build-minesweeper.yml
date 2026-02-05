@@ -4,12 +4,12 @@ on:
   push:
     branches: [ master ]
     paths:
-      - 'Intermediate C Programming/Project03_01/**'
+      - 'Intermediate-C-Programming/Minesweeper/**'
       - '.github/workflows/build-minesweeper.yml'
   pull_request:
     branches: [ master ]
     paths:
-      - 'Intermediate C Programming/Project03_01/**'
+      - 'Intermediate-C-Programming/Minesweeper/**'
   workflow_dispatch:  # Allow manual trigger
 
 jobs:
@@ -26,7 +26,7 @@ jobs:
           sudo apt-get install -y libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev libsdl2-mixer-dev
 
       - name: Build
-        working-directory: 'Intermediate C Programming/Project03_01'
+        working-directory: 'Intermediate-C-Programming/Minesweeper'
         run: |
           cc main.c -Wall -std=c99 \
             $(sdl2-config --cflags) \
@@ -35,7 +35,7 @@ jobs:
             -o minesweeper
 
       - name: Prepare artifacts
-        working-directory: 'Intermediate C Programming/Project03_01'
+        working-directory: 'Intermediate-C-Programming/Minesweeper'
         run: |
           mkdir -p dist
           cp minesweeper dist/
@@ -49,7 +49,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: minesweeper-linux
-          path: 'Intermediate C Programming/Project03_01/dist/'
+          path: 'Intermediate-C-Programming/Minesweeper/dist/'
           retention-days: 30
 
   build-macos:
@@ -64,7 +64,7 @@ jobs:
           brew install sdl2 sdl2_image sdl2_ttf sdl2_mixer
 
       - name: Build
-        working-directory: 'Intermediate C Programming/Project03_01'
+        working-directory: 'Intermediate-C-Programming/Minesweeper'
         run: |
           # Homebrew's sdl2-config --cflags returns -I.../include/SDL2
           # but code uses #include <SDL2/SDL.h>, so we need parent dir
@@ -77,7 +77,7 @@ jobs:
             -o minesweeper
 
       - name: Prepare artifacts
-        working-directory: 'Intermediate C Programming/Project03_01'
+        working-directory: 'Intermediate-C-Programming/Minesweeper'
         run: |
           mkdir -p dist
           cp minesweeper dist/
@@ -91,7 +91,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: minesweeper-macos
-          path: 'Intermediate C Programming/Project03_01/dist/'
+          path: 'Intermediate-C-Programming/Minesweeper/dist/'
           retention-days: 30
 
   build-windows:
@@ -117,7 +117,7 @@ jobs:
             mingw-w64-x86_64-SDL2_mixer
 
       - name: Build
-        working-directory: 'Intermediate C Programming/Project03_01'
+        working-directory: 'Intermediate-C-Programming/Minesweeper'
         run: |
           gcc main.c -Wall -std=c99 \
             $(sdl2-config --cflags) \
@@ -126,7 +126,7 @@ jobs:
             -o minesweeper.exe
 
       - name: Prepare artifacts
-        working-directory: 'Intermediate C Programming/Project03_01'
+        working-directory: 'Intermediate-C-Programming/Minesweeper'
         run: |
           mkdir -p dist
           cp minesweeper.exe dist/
@@ -143,5 +143,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: minesweeper-windows
-          path: 'Intermediate C Programming/Project03_01/dist/'
+          path: 'Intermediate-C-Programming/Minesweeper/dist/'
           retention-days: 30
