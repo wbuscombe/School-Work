@@ -1,0 +1,51 @@
+# Phantom manifest for Graphical Sorting Visualization
+# Note: This uses Princeton's algs4 StdDraw library. It uses self-capture mode
+# (PHANTOM_MODE=1) rather than Phantom's standard web/TUI runners.
+# The apps capture their own screenshots and exit.
+
+phantom: "1"
+project: graphical-sorting
+name: Graphical Sorting Visualization
+
+setup:
+  type: web  # Closest match; actual capture is self-capture via PHANTOM_MODE
+  requires:
+    - java
+  build:
+    - javac -cp ".:algs4.jar" *.java
+  run:
+    command: "java -cp .:algs4.jar GraphicalInsertion"
+    env:
+      PHANTOM_MODE: "1"
+    ready_check:
+      type: delay
+      seconds: 5
+
+capture_defaults:
+  theme: light
+  device_scale: 1
+  timeout: 30
+
+captures:
+  - id: insertion-sort
+    name: Insertion Sort
+    output: docs/screenshots/insertion-sort.png
+    alt_text: "Graphical insertion sort visualization with sorted elements in gray"
+    readme_target: insertion-sort
+
+  - id: selection-sort
+    name: Selection Sort
+    output: docs/screenshots/selection-sort.png
+    alt_text: "Graphical selection sort visualization with sorted elements in gray"
+    readme_target: selection-sort
+
+processing:
+  format: png
+  optimize: true
+  border:
+    style: drop-shadow
+
+publishing:
+  branch: master
+  strategy: direct
+  readme_update: true

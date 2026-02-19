@@ -1,23 +1,25 @@
 import edu.princeton.cs.algs4.In;
 import edu.princeton.cs.algs4.StdDraw;
-import edu.princeton.cs.algs4.StdIn;
 import edu.princeton.cs.algs4.StdOut;
 
 public class Brute {
+	private static final boolean PHANTOM = "1".equals(System.getenv("PHANTOM_MODE"));
+
 	public static void main(String[] args) {
 		// rescale coordinates and turn on animation mode
 		StdDraw.setXscale(0, 32768);
 		StdDraw.setYscale(0, 32768);
 		StdDraw.show(0);
 
-		// read in the input
-		int N = StdIn.readInt();
+		// read in the input (from file in phantom mode, stdin otherwise)
+		In input = PHANTOM ? new In("input10.txt") : new In();
+		int N = input.readInt();
 		Point points[] = new Point[N];
 		for (int i = 0; i < N; ++i) {
-			int x = StdIn.readInt();
-			int y = StdIn.readInt();
+			int x = input.readInt();
+			int y = input.readInt();
 			points[i] = new Point(x, y);
-			
+
 			// Draw all of the points we read in
 			StdDraw.setPenRadius(0.015);
 			StdDraw.setPenColor(StdDraw.BLACK);
@@ -47,6 +49,13 @@ public class Brute {
 
 		// display to screen all at once
 		StdDraw.show(0);
+
+		if (PHANTOM) {
+			new java.io.File("docs/screenshots").mkdirs();
+			StdDraw.save("docs/screenshots/collinear-points.png");
+			System.out.println("PHANTOM_MODE: Captured collinear-points.png");
+			System.exit(0);
+		}
 	}
 
 	public static String displayCollinearPoints(Point a, Point b, Point c,

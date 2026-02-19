@@ -3,6 +3,9 @@ import edu.princeton.cs.algs4.StdDraw;
 
 @SuppressWarnings("unchecked")
 public class GraphicalSelection {
+	private static final boolean PHANTOM = "1".equals(System.getenv("PHANTOM_MODE"));
+	private static final int DELAY = PHANTOM ? 10 : 1000;
+
 	public static void sort(Comparable[] a) {
 		// Length of comparable array
 		int N = a.length;
@@ -28,7 +31,7 @@ public class GraphicalSelection {
 			}
 
 			// Draw for one second
-			StdDraw.show(1000);
+			StdDraw.show(DELAY);
 
 			// Initialize minimum element at index i
 			int min = i;
@@ -62,7 +65,7 @@ public class GraphicalSelection {
 			}
 
 			// Draw for one second
-			StdDraw.show(1000);
+			StdDraw.show(DELAY);
 
 			// Swap the first element to the right of the sorted portion with
 			// the minimum element in the unsorted portion
@@ -92,7 +95,7 @@ public class GraphicalSelection {
 		}
 
 		// Draw for one second
-		StdDraw.show(1000);
+		StdDraw.show(DELAY);
 	}
 
 	// is v < w ?
@@ -121,10 +124,7 @@ public class GraphicalSelection {
 	}
 
 	public static void main(String[] args) {
-		// Read in size of array from command line
-		int N = Integer.parseInt(args[0]);
-
-		//int N = 20;
+		int N = (args.length > 0) ? Integer.parseInt(args[0]) : 20;
 
 		Double[] a = new Double[N];
 
@@ -136,7 +136,14 @@ public class GraphicalSelection {
 		// Shuffle a
 		StdRandom.shuffle(a);
 
-		// Run insertion sort method
+		// Run selection sort method
 		GraphicalSelection.sort(a);
+
+		if (PHANTOM) {
+			new java.io.File("docs/screenshots").mkdirs();
+			StdDraw.save("docs/screenshots/selection-sort.png");
+			System.out.println("PHANTOM_MODE: Captured selection-sort.png");
+			System.exit(0);
+		}
 	}
 }

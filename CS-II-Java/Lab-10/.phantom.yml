@@ -1,0 +1,45 @@
+# Phantom manifest for Sierpinski Triangle
+# Note: This is a Java Swing desktop app. It uses self-capture mode
+# (PHANTOM_MODE=1) rather than Phantom's standard web/TUI runners.
+# The app captures its own screenshots and exits.
+
+phantom: "1"
+project: sierpinski-triangle
+name: Sierpinski Triangle
+
+setup:
+  type: web  # Closest match; actual capture is self-capture via PHANTOM_MODE
+  requires:
+    - java
+  build:
+    - javac *.java
+  run:
+    command: "java SierpinskiTriangleDriver"
+    env:
+      PHANTOM_MODE: "1"
+    ready_check:
+      type: delay
+      seconds: 2
+
+capture_defaults:
+  theme: light
+  device_scale: 1
+  timeout: 10
+
+captures:
+  - id: sierpinski-triangle
+    name: Sierpinski Triangle
+    output: docs/screenshots/sierpinski-triangle.png
+    alt_text: "Sierpinski Triangle fractal at iteration 5 with recursive subdivisions"
+    readme_target: sierpinski-triangle
+
+processing:
+  format: png
+  optimize: true
+  border:
+    style: drop-shadow
+
+publishing:
+  branch: master
+  strategy: direct
+  readme_update: true

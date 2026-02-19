@@ -3,6 +3,9 @@ import edu.princeton.cs.algs4.StdRandom;
 
 @SuppressWarnings("unchecked")
 public class GraphicalInsertion {
+	private static final boolean PHANTOM = "1".equals(System.getenv("PHANTOM_MODE"));
+	private static final int DELAY = PHANTOM ? 10 : 1000;
+
 	public static void sort(Comparable[] a) {
 		// Length of comparable array
 		int N = a.length;
@@ -28,7 +31,7 @@ public class GraphicalInsertion {
 			}
 
 			// Draw for one second
-			StdDraw.show(1000);
+			StdDraw.show(DELAY);
 
 			// While element after sorted section is still larger than elements
 			// to its left, continue swapping it until it is in its rightful
@@ -56,7 +59,7 @@ public class GraphicalInsertion {
 				}
 
 				// Draw for one second
-				StdDraw.show(1000);
+				StdDraw.show(DELAY);
 
 				// Clear canvas for next graph
 				StdDraw.clear();
@@ -80,7 +83,7 @@ public class GraphicalInsertion {
 				}
 
 				// Draw for one second
-				StdDraw.show(1000);
+				StdDraw.show(DELAY);
 
 				// Swap two selected elements
 				exch(a, j, j - 1);
@@ -111,7 +114,7 @@ public class GraphicalInsertion {
 		}
 
 		// Draw for one second
-		StdDraw.show(1000);
+		StdDraw.show(DELAY);
 	}
 
 	// is v < w ?
@@ -140,10 +143,7 @@ public class GraphicalInsertion {
 	}
 
 	public static void main(String[] args) {
-		// Read in size of array from command line
-		int N = Integer.parseInt(args[0]);
-
-		//int N = 20;
+		int N = (args.length > 0) ? Integer.parseInt(args[0]) : 20;
 
 		Double[] a = new Double[N];
 
@@ -157,6 +157,13 @@ public class GraphicalInsertion {
 
 		// Run insertion sort method
 		GraphicalInsertion.sort(a);
+
+		if (PHANTOM) {
+			new java.io.File("docs/screenshots").mkdirs();
+			StdDraw.save("docs/screenshots/insertion-sort.png");
+			System.out.println("PHANTOM_MODE: Captured insertion-sort.png");
+			System.exit(0);
+		}
 	}
 
 }

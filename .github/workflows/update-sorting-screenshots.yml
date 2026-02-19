@@ -1,0 +1,80 @@
+name: Update Sorting Visualization Screenshots
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'Data-Structures-Java/Homework-7/*.java'
+      - '.github/workflows/update-sorting-screenshots.yml'
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  capture-screenshots:
+    runs-on: ubuntu-latest
+    name: Capture Screenshots
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+
+      - name: Install xvfb
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: Download algs4.jar
+        working-directory: Data-Structures-Java/Homework-7
+        run: curl -sL https://algs4.cs.princeton.edu/code/algs4.jar -o algs4.jar
+
+      - name: Build
+        working-directory: Data-Structures-Java/Homework-7
+        run: javac -cp ".:algs4.jar" *.java
+
+      - name: Capture insertion sort screenshot
+        working-directory: Data-Structures-Java/Homework-7
+        env:
+          PHANTOM_MODE: "1"
+        run: xvfb-run -a --server-args="-screen 0 1920x1080x24" java -cp ".:algs4.jar" GraphicalInsertion
+
+      - name: Capture selection sort screenshot
+        working-directory: Data-Structures-Java/Homework-7
+        env:
+          PHANTOM_MODE: "1"
+        run: xvfb-run -a --server-args="-screen 0 1920x1080x24" java -cp ".:algs4.jar" GraphicalSelection
+
+      - name: Verify screenshots
+        working-directory: Data-Structures-Java/Homework-7
+        run: |
+          echo "Generated screenshots:"
+          ls -la docs/screenshots/*.png
+          for f in docs/screenshots/*.png; do
+            size=$(stat -c%s "$f" 2>/dev/null || stat -f%z "$f")
+            echo "  $f: ${size} bytes"
+            if [ "$size" -lt 1000 ]; then
+              echo "ERROR: $f appears to be blank (< 1KB)"
+              exit 1
+            fi
+          done
+
+      - name: Commit and push
+        working-directory: Data-Structures-Java/Homework-7
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add docs/screenshots/*.png
+          if git diff --staged --quiet; then
+            echo "No screenshot changes detected"
+          else
+            git commit -m "docs: update Sorting Visualization screenshots [phantom]"
+            git push
+          fi

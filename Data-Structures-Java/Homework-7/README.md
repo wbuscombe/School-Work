@@ -1,5 +1,15 @@
 #Description
 
+## Screenshots
+
+<!-- phantom:insertion-sort -->
+![Graphical insertion sort visualization with sorted elements in gray](docs/screenshots/insertion-sort.png)
+<!-- /phantom:insertion-sort -->
+
+<!-- phantom:selection-sort -->
+![Graphical selection sort visualization with sorted elements in gray](docs/screenshots/selection-sort.png)
+<!-- /phantom:selection-sort -->
+
 ##GraphicalInsertion.java
 
 This program generates a randomly assorted array of double values from 1/N to 1. It then sorts them using the insertion sort method and draws a graphical representation of the process every step of the way.

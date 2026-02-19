@@ -1,5 +1,11 @@
 #Description
 
+## Screenshots
+
+<!-- phantom:collinear-points -->
+![Points plotted on xy-plane with red lines connecting collinear groups](docs/screenshots/collinear-points.png)
+<!-- /phantom:collinear-points -->
+
 ##Point.java
 
 An immutable data type for points in the plane.
