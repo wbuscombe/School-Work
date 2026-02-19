@@ -19,12 +19,25 @@ A Minesweeper clone built with SDL2 featuring multiple difficulty levels, time p
 
 ## Screenshots
 
-| Start | Mid-game | Victory |
-|-------|----------|---------|
-| ![Start](cap1.PNG) | ![Playing](cap2.PNG) | ![Win](cap4.PNG) |
+<!-- phantom:main-menu -->
+<img src="docs/screenshots/main-menu.png" width="640" alt="Extreme Minesweeper main menu with NEW GAME button">
+<!-- /phantom:main-menu -->
 
-![Explosion](cap3.PNG)
-![Game Over](cap5.PNG)
+<!-- phantom:difficulty-select -->
+<img src="docs/screenshots/difficulty-select.png" width="640" alt="Difficulty selection with Easy, Medium, Hard, and Extreme modes">
+<!-- /phantom:difficulty-select -->
+
+<!-- phantom:mid-game -->
+<img src="docs/screenshots/mid-game.png" width="640" alt="Active gameplay showing partially revealed board with numbers and countdown timer">
+<!-- /phantom:mid-game -->
+
+<!-- phantom:game-over -->
+<img src="docs/screenshots/game-over.png" width="640" alt="Game over screen after hitting a mine with timer at zero">
+<!-- /phantom:game-over -->
+
+<!-- phantom:victory -->
+<img src="docs/screenshots/victory.png" width="640" alt="Victory screen with all safe tiles revealed and time remaining">
+<!-- /phantom:victory -->
 
 ## Downloads
 

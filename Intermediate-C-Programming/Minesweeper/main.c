@@ -5,6 +5,7 @@
 
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
@@ -165,6 +166,10 @@ typedef struct GameState
 	MenuHover menuHover;			// Which menu button is hovered
 } GameState;
 
+// When true, draw functions skip SDL_RenderPresent so phantomCapture can
+// read pixel data from the back buffer before presenting.
+static bool g_phantom_capturing = false;
+
 void cleanupAndClose(int exitCode, GameState *state);
 
 bool setupSDL(char *title, int width, int height, GameState *state);
@@ -196,6 +201,10 @@ void drawCongraturation(GameState *state);
 void drawMenuButton(GameState *state, int x, int y, int w, int h, const char *text, bool hovered);
 
 int getTimeForDifficulty(Difficulty diff, int extremePlusTime);
+
+// Phantom screenshot capture (PHANTOM_MODE=1)
+bool saveScreenshot(SDL_Renderer *renderer, const char *filepath);
+void phantomCapture(GameState *state);
 
 int main(int argc, char *argv[])
 {
@@ -229,7 +238,11 @@ int main(int argc, char *argv[])
 
 	if (setupSDL("Extreme Minesweeper - by Will Buscombe", WINDOW_W, WINDOW_H, &state))
 	{
-		gameLoop(&state);
+		const char *phantom_env = getenv("PHANTOM_MODE");
+		if (phantom_env && strcmp(phantom_env, "1") == 0)
+			phantomCapture(&state);
+		else
+			gameLoop(&state);
 	}
 
 	cleanupAndClose(EXIT_SUCCESS, &state);
@@ -930,7 +943,11 @@ void gameLoop(GameState *state)
 
 void initGrid(GameState *state)
 {
-	srand((unsigned int) time(NULL));
+	const char *phantom_env = getenv("PHANTOM_MODE");
+	if (phantom_env && strcmp(phantom_env, "1") == 0)
+		srand(42);
+	else
+		srand((unsigned int) time(NULL));
 
 	// Randomly Select Positions of Mines
 	for (int i = 0; i < (int) MINES; ++i)
@@ -1305,8 +1322,9 @@ void draw(GameState *state, bool explosionFlag)
 	// Draw side panel buttons (NEW GAME, RESET, EXIT)
 	drawSidePanelButtons(state);
 
-	// Draw to the screen
-	SDL_RenderPresent(state->renderer);
+	// Draw to the screen (skipped during phantom capture so pixels can be read first)
+	if (!g_phantom_capturing)
+		SDL_RenderPresent(state->renderer);
 }
 
 // Helper function to draw a single button
@@ -1380,7 +1398,8 @@ void drawMainMenu(GameState *state)
 	drawSingleButton(state, MENU_BTN_X, btnY, MENU_BTN_W, MENU_BTN_H,
 	                 "NEW GAME", state->menuHover == MENU_HOVER_NEWGAME, state->menuFont);
 
-	SDL_RenderPresent(state->renderer);
+	if (!g_phantom_capturing)
+		SDL_RenderPresent(state->renderer);
 }
 
 void drawDifficultyMenu(GameState *state)
@@ -1416,7 +1435,8 @@ void drawDifficultyMenu(GameState *state)
 	drawSingleButton(state, MENU_BTN_X, startY + 3 * (MENU_BTN_H + MENU_BTN_SPACING), MENU_BTN_W, MENU_BTN_H,
 	                 "EXTREME", state->menuHover == MENU_HOVER_EXTREME, state->menuFont);
 
-	SDL_RenderPresent(state->renderer);
+	if (!g_phantom_capturing)
+		SDL_RenderPresent(state->renderer);
 }
 
 void drawExtremePlusPrompt(GameState *state)
@@ -1543,4 +1563,143 @@ void drawCongraturation(GameState *state)
 void drawMenuButton(GameState *state, int x, int y, int w, int h, const char *text, bool hovered)
 {
 	drawSingleButton(state, x, y, w, h, text, hovered, state->menuFont);
+}
+
+// ── Phantom Screenshot Capture ──────────────────────────────────────────────
+
+bool saveScreenshot(SDL_Renderer *renderer, const char *filepath)
+{
+	int w, h;
+	if (SDL_GetRendererOutputSize(renderer, &w, &h) != 0)
+		return false;
+
+	SDL_Surface *surface = SDL_CreateRGBSurfaceWithFormat(0, w, h, 32, SDL_PIXELFORMAT_RGBA32);
+	if (!surface)
+		return false;
+
+	if (SDL_RenderReadPixels(renderer, NULL, SDL_PIXELFORMAT_RGBA32,
+	                         surface->pixels, surface->pitch) != 0)
+	{
+		SDL_FreeSurface(surface);
+		return false;
+	}
+
+	int result = IMG_SavePNG(surface, filepath);
+	SDL_FreeSurface(surface);
+	return result == 0;
+}
+
+void phantomCapture(GameState *state)
+{
+	printf("PHANTOM_MODE: Capturing screenshots...\n");
+	g_phantom_capturing = true;
+
+	#ifdef _WIN32
+	system("mkdir docs\\screenshots 2>NUL");
+	#else
+	system("mkdir -p docs/screenshots");
+	#endif
+
+	// 1. Main Menu
+	state->screenState = SCREEN_MAIN_MENU;
+	state->menuHover = MENU_HOVER_NONE;
+	drawMainMenu(state);
+	saveScreenshot(state->renderer, "docs/screenshots/main-menu.png");
+	SDL_RenderPresent(state->renderer);
+	printf("  [1/5] main-menu.png\n");
+
+	// 2. Difficulty Select
+	state->screenState = SCREEN_DIFFICULTY;
+	state->menuHover = MENU_HOVER_NONE;
+	drawDifficultyMenu(state);
+	saveScreenshot(state->renderer, "docs/screenshots/difficulty-select.png");
+	SDL_RenderPresent(state->renderer);
+	printf("  [2/5] difficulty-select.png\n");
+
+	// 3. Mid-game — Hard difficulty, partially revealed board, timer at 42s
+	startNewGame(state, DIFF_HARD);
+	state->gameStarted = true;
+	state->time = 42;
+
+	// Reveal a natural cluster: find first zero-adjacent tile and flood-fill
+	bool revealed_cluster = false;
+	for (int i = 0; i < GRID_ROWS && !revealed_cluster; i++)
+	{
+		for (int j = 0; j < GRID_COLS && !revealed_cluster; j++)
+		{
+			if (!state->mines[i][j] && state->adjNum[i][j] == 0)
+			{
+				clearLocalZeroes(state, i, j);
+				revealed_cluster = true;
+			}
+		}
+	}
+
+	// Reveal a few more scattered numbered tiles for visual interest
+	int extra = 0;
+	for (int i = 0; i < GRID_ROWS && extra < 8; i++)
+	{
+		for (int j = 0; j < GRID_COLS && extra < 8; j++)
+		{
+			if (!state->mines[i][j] && !state->revealed[i][j] && state->adjNum[i][j] > 0)
+			{
+				if ((i * GRID_COLS + j) % 7 == 0)
+				{
+					state->revealed[i][j] = true;
+					extra++;
+				}
+			}
+		}
+	}
+
+	draw(state, false);
+	saveScreenshot(state->renderer, "docs/screenshots/mid-game.png");
+	SDL_RenderPresent(state->renderer);
+	printf("  [3/5] mid-game.png\n");
+
+	// 4. Game Over — reveal a mine, show defeat state
+	for (int i = 0; i < GRID_ROWS; i++)
+	{
+		for (int j = 0; j < GRID_COLS; j++)
+		{
+			if (state->mines[i][j] && !state->revealed[i][j])
+			{
+				state->revealed[i][j] = true;
+				state->mineX = j;
+				state->mineY = i;
+				state->mineFound = true;
+				i = GRID_ROWS;  // Break outer loop
+				break;
+			}
+		}
+	}
+	state->gameOver = true;
+	state->defeat = true;
+	state->time = 0;
+	draw(state, false);
+	saveScreenshot(state->renderer, "docs/screenshots/game-over.png");
+	SDL_RenderPresent(state->renderer);
+	printf("  [4/5] game-over.png\n");
+
+	// 5. Victory — all non-mine tiles revealed
+	resetGame(state);
+	state->gameStarted = true;
+	state->time = 23;
+	for (int i = 0; i < GRID_ROWS; i++)
+	{
+		for (int j = 0; j < GRID_COLS; j++)
+		{
+			if (!state->mines[i][j])
+				state->revealed[i][j] = true;
+		}
+	}
+	state->gameOver = true;
+	state->victory = true;
+	draw(state, false);
+	saveScreenshot(state->renderer, "docs/screenshots/victory.png");
+	SDL_RenderPresent(state->renderer);
+	printf("  [5/5] victory.png\n");
+
+	g_phantom_capturing = false;
+	printf("PHANTOM_MODE: Capture complete.\n");
 }

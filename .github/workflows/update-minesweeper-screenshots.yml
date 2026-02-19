@@ -1,0 +1,78 @@
+name: Update Minesweeper Screenshots
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'Intermediate-C-Programming/Minesweeper/main.c'
+      - 'Intermediate-C-Programming/Minesweeper/makefile'
+      - 'Intermediate-C-Programming/Minesweeper/*.bmp'
+      - 'Intermediate-C-Programming/Minesweeper/*.ttf'
+      - '.github/workflows/update-minesweeper-screenshots.yml'
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  capture-screenshots:
+    runs-on: ubuntu-latest
+    name: Capture Screenshots
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install SDL2 and xvfb
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev libsdl2-mixer-dev \
+            xvfb fonts-dejavu-core
+
+      - name: Build
+        working-directory: Intermediate-C-Programming/Minesweeper
+        run: |
+          cc main.c -Wall -std=c99 \
+            $(sdl2-config --cflags) \
+            $(sdl2-config --libs) \
+            -lSDL2_image -lSDL2_ttf -lSDL2_mixer \
+            -o minesweeper
+
+      - name: Capture screenshots
+        working-directory: Intermediate-C-Programming/Minesweeper
+        env:
+          PHANTOM_MODE: "1"
+          SDL_AUDIODRIVER: dummy
+        run: |
+          xvfb-run -a --server-args="-screen 0 1920x1080x24" ./minesweeper
+
+      - name: Verify screenshots
+        working-directory: Intermediate-C-Programming/Minesweeper
+        run: |
+          echo "Generated screenshots:"
+          ls -la docs/screenshots/*.png
+          for f in docs/screenshots/*.png; do
+            size=$(stat -c%s "$f" 2>/dev/null || stat -f%z "$f")
+            echo "  $f: ${size} bytes"
+            if [ "$size" -lt 1000 ]; then
+              echo "ERROR: $f appears to be blank (< 1KB)"
+              exit 1
+            fi
+          done
+
+      - name: Commit and push
+        working-directory: Intermediate-C-Programming/Minesweeper
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add docs/screenshots/*.png
+          if git diff --staged --quiet; then
+            echo "No screenshot changes detected"
+          else
+            git commit -m "docs: update Minesweeper screenshots [phantom]"
+            git push
+          fi

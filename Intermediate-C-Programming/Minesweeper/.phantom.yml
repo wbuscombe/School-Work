@@ -1,0 +1,70 @@
+# Phantom manifest for Extreme Minesweeper
+# Note: This is a native SDL2 desktop app. It uses self-capture mode
+# (PHANTOM_MODE=1) rather than Phantom's standard web/TUI runners.
+# The app captures its own screenshots and exits.
+
+phantom: "1"
+project: extreme-minesweeper
+name: Extreme Minesweeper
+
+setup:
+  type: web  # Closest match; actual capture is self-capture via PHANTOM_MODE
+  requires:
+    - gcc
+  build:
+    - make clean
+    - make
+  run:
+    command: "./minesweeper"
+    env:
+      PHANTOM_MODE: "1"
+    ready_check:
+      type: delay
+      seconds: 1
+
+capture_defaults:
+  theme: dark
+  device_scale: 1
+  timeout: 10
+
+captures:
+  - id: main-menu
+    name: Main Menu
+    output: docs/screenshots/main-menu.png
+    alt_text: "Extreme Minesweeper main menu with NEW GAME button"
+    readme_target: main-menu
+
+  - id: difficulty-select
+    name: Difficulty Selection
+    output: docs/screenshots/difficulty-select.png
+    alt_text: "Difficulty selection with Easy, Medium, Hard, and Extreme modes"
+    readme_target: difficulty-select
+
+  - id: mid-game
+    name: Mid-Game
+    output: docs/screenshots/mid-game.png
+    alt_text: "Active gameplay showing partially revealed board with numbers and countdown timer"
+    readme_target: mid-game
+
+  - id: game-over
+    name: Game Over
+    output: docs/screenshots/game-over.png
+    alt_text: "Game over screen after hitting a mine with timer at zero"
+    readme_target: game-over
+
+  - id: victory
+    name: Victory
+    output: docs/screenshots/victory.png
+    alt_text: "Victory screen with all safe tiles revealed and time remaining"
+    readme_target: victory
+
+processing:
+  format: png
+  optimize: true
+  border:
+    style: drop-shadow
+
+publishing:
+  branch: master
+  strategy: direct
+  readme_update: true
