@@ -76,5 +76,6 @@ jobs:
             echo "No screenshot changes detected"
           else
             git commit -m "docs: update Sorting Visualization screenshots [phantom]"
+            git pull --rebase origin master
             git push
           fi
